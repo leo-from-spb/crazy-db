@@ -63512,13 +63512,9 @@ urbanity
 urbanization
 urban_area
 urban_guerrilla
-Urban_II
 urban_legend
 urban_planning
 urban_renewal
-Urban_V
-Urban_VI
-Urban_VIII
 urceole
 urchin
 Urd

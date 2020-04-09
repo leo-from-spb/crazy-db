@@ -34,6 +34,8 @@ class Dictionary {
 
 
     fun guessNoun(min: Int, vararg except: Set<String>): String = guessWord(nouns, min, *except)
+    fun guessVerb(min: Int, vararg except: Set<String>): String = guessWord(verbs, min, *except)
+    fun guessAdjective(min: Int, vararg except: Set<String>): String = guessWord(adjectives, min, *except)
 
 
     fun guessWord(list: List<String>, min: Int, vararg except: Set<String>): String {
