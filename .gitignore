@@ -1,14 +1,18 @@
+# IntelliJ Idea files
+.idea/workspace.xml
+.idea/uiDesigner.xml
+.idea/deployment.xml
+.idea/shelf
+.idea/ant.xml
+.idea/dataSources.local.xml
+.idea/$*
+out
+
 # Compiled class file
 *.class
 
 # Log file
 *.log
-
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
 
 # Package Files #
 *.jar
