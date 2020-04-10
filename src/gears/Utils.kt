@@ -34,7 +34,7 @@ fun panic(message: String): Nothing {
 }
 
 
-fun StringBuilder.phrase(vararg parts: String?): StringBuilder {
+fun StringBuilder.phrase(vararg parts: CharSequence?): StringBuilder {
     var was = false
     for (part in parts) {
         if (part.isNullOrBlank()) continue
@@ -53,6 +53,11 @@ fun StringBuilder.eoln():  StringBuilder = append('\n')
 
 fun StringBuilder.eolnIfNo(): StringBuilder {
     if (!endsWith('\n')) append('\n')
+    return this
+}
+
+fun StringBuilder.space(w: Int = 1): StringBuilder {
+    for (i in 1..w) append(' ')
     return this
 }
 
@@ -98,6 +103,14 @@ infix fun CharSequence.shiftTextWith(prefix: Char): CharSequence =
         '\n' !in this -> this
         this.last() == '\n' -> prefix + this.subSequence(0, length-1).replace(eolnPattern, "\n$prefix") + ' '
         else -> prefix + this.replace(eolnPattern, "\n$prefix")
+    }
+
+infix fun CharSequence.shiftTextBodyWith(prefix: String): CharSequence =
+    when {
+        this.isEmpty() -> this
+        '\n' !in this -> this
+        this.last() == '\n' -> this.subSequence(0, length-1).replace(eolnPattern, "\n$prefix") + ' '
+        else -> this.replace(eolnPattern, "\n$prefix")
     }
 
 

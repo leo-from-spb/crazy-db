@@ -9,7 +9,8 @@ import java.nio.file.Path
 class Producer (val model: Model) {
 
     val generatedSequences: MutableSet<Sequence> = HashSet()
-    val generatedTables: MutableSet<Table> = HashSet()
+    val generatedTables:    MutableSet<Table>    = HashSet()
+    val generatedViews:     MutableSet<View>     = HashSet()
 
 
     fun produceAll() {
@@ -19,7 +20,8 @@ class Producer (val model: Model) {
         }
         say("Produced: \n" +
             "\t${generatedSequences.size}\tsequences,\n" +
-            "\t${generatedTables.size}\ttables.\n")
+            "\t${generatedTables.size}\ttables,\n" +
+            "\t${generatedViews.size}\tviews.\n")
     }
 
 
@@ -48,7 +50,9 @@ class Producer (val model: Model) {
         b.append("create table ").append(table.name).append('\n')
         b.append("(\n")
         for (column in table.columns) {
-            b.tab().phrase(column.name, column.dataType, column.mandatory.then("not null"), (column.primary && pks == 1).then("primary key")).comma().eoln()
+            val default = if (column.defaultExpression != null) "default (${column.defaultExpression})" else null
+            val pk = (column.primary && pks == 1).then("primary key")
+            b.tab().phrase(column.name, column.dataType, default, column.mandatory.then("not null"), pk).comma().eoln()
         }
         if (pks >= 2) {
             val ct = table.columns.filter(Column::primary).joinToString { it.name }
@@ -81,6 +85,25 @@ class Producer (val model: Model) {
             b.append("begin\n")
             b.append(trigger.body shiftTextWith '\t').eolnIfNo()
             b.append("end;\n/\n\n")
+        }
+
+        for (view in table.associatedViews) {
+            if (view in generatedViews) continue
+            b.phrase("create view", view.name, "as").eoln()
+            var first = true
+            for (c in view.columns) {
+                val begin = if (first) "select " else "       "
+                b.append(begin).phrase(c.expression).comma().eoln()
+                first = false
+            }
+            b.removeEnding()
+            if (view.clauseFrom != null) b.phrase("from", view.clauseFrom!! shiftTextBodyWith "     ").eoln()
+            if (view.clauseWhere != null) b.phrase("where", view.clauseWhere!! shiftTextBodyWith "  ").eoln()
+            if (view.clauseGroup != null) b.phrase("group by", view.clauseGroup!! shiftTextBodyWith "      ").eoln()
+            if (view.withCheckOption) b.append("with check option").eoln()
+            if (view.withReadOnly) b.append("with read only").eoln()
+            b.append("/\n\n")
+            generatedViews += view
         }
 
         return b.toString()

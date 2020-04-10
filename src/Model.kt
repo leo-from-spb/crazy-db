@@ -10,6 +10,7 @@ class Model {
 
     val sequences = ArrayList<Sequence>()
     val tables    = ArrayList<Table>()
+    val views     = ArrayList<View>()
 
     val usedNames: MutableSet<String> = emptyNameSet()
 
@@ -57,15 +58,17 @@ enum class TableRole {
 
 class Table (val role: TableRole, vararg nameWords: String) : Entity(*nameWords) {
 
-    val columns = ArrayList<Column>()
+    val columns = ArrayList<TableColumn>()
     val indices = ArrayList<Index>()
     val references = ArrayList<Reference>()
     val checks = ArrayList<Check>()
     val triggers = ArrayList<Trigger>()
 
     var associatedSequence: Sequence? = null
-    
-    val dependentOnTables: Set<Table> = emptySet()
+    val associatedViews = ArrayList<View>()
+
+    val inheritedTables = ArrayList<Table>()
+    val dependentOnTables = ArrayList<Table>()
 
     val primaryKeySize: Int
         get() = columns.stream().filter(Column::primary).count().toInt()
@@ -85,28 +88,78 @@ class Check (val table: Table, vararg nameWords: String) : Entity(*nameWords) {
 
 
 class View (vararg nameWords: String) : Entity(*nameWords) {
-    val columns = ArrayList<Column>()
+    val columns = ArrayList<ViewColumn>()
     val baseTables = ArrayList<Table>()
+
+    var clauseFrom:  String? = null
+    var clauseWhere: String? = null
+    var clauseGroup: String? = null
+
+    var withCheckOption = false
+    var withReadOnly    = false
 }
 
 
-class Column (val table: Table, vararg nameWords: String) : Entity(*nameWords) {
+sealed class Column (val host: Entity, vararg nameWords: String) : Entity(*nameWords) {
 
     var mandatory = false
     var primary = false
     var dataType: String = "char"
 
+    val qName: String
+        get() = host.name + '.' + name
+
+    fun copyToView(view: View, qualified: Boolean = false, prefixWord: String? = null): ViewColumn {
+        val newNameWords: Array<out String> =
+            if (prefixWord == null) nameWords
+            else arrayOf(prefixWord) + nameWords
+        val expression = if (qualified) qName else name
+        val newColumn = ViewColumn(view, expression, *newNameWords)
+        newColumn.dataType = dataType
+        return newColumn
+    }
+
+}
+
+
+class TableColumn (val table: Table, vararg nameWords: String) : Column(table, *nameWords) {
+
+    var defaultExpression: String? = null
+
     init {
         table.columns += this
     }
 
-    fun copyTo(table: Table, prefixWord: String? = null): Column {
+    fun setDataTypeAndDefault(spec: String) {
+        val p = spec.indexOf("->")
+        if (p < 0) {
+            dataType = spec
+            defaultExpression = null
+        }
+        else {
+            dataType = spec.substring(0, p).trim()
+            defaultExpression = spec.substring(p+2).trim()
+        }
+    }
+
+    fun copyToTable(table: Table, prefixWord: String? = null): TableColumn {
         val newNameWords: Array<out String> =
             if (prefixWord == null) nameWords
             else arrayOf(prefixWord) + nameWords
-        val newColumn = Column(table, *newNameWords)
+        val newColumn = TableColumn(table, *newNameWords)
         newColumn.dataType = dataType
         return newColumn
+    }
+
+}
+
+
+class ViewColumn (val view: View, expression: String, vararg nameWords: String) : Column(view, *nameWords) {
+
+    var expression: String = expression.trim()
+
+    init {
+        view.columns += this
     }
 
 }

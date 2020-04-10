@@ -44,13 +44,37 @@ class Contriver(val model: Model, val dict: Dictionary) {
         model.sequences += mainSequence
         usedNames += mainSequence.name
 
+        val inheritance = rnd.nextBoolean()
+        val inheritedTableNumber = if (inheritance) 2 + rnd.nextInt(6) else 0
+
         val mainTable = Table(roleMain, mainWord)
         mainTable.associatedSequence = mainSequence
 
-        val keyColumn = Column(mainTable, "id").apply {
+        val exceptColumnNames = newNameSet(mainAbb)
+
+        val keyColumn = TableColumn(mainTable, "id").apply {
             mandatory = true
             primary = true
-            dataType = guessPrimaryDataType()
+            setDataTypeAndDefault(guessPrimaryDataType())
+            exceptColumnNames += name
+        }
+
+        if (!inheritance && rnd.nextBoolean()) {
+            val name = when (rnd.nextInt(4)) {
+                1    -> "option_id"
+                2    -> "type_id"
+                3    -> "scope"
+                else -> "code"
+            }
+            TableColumn(mainTable, name).apply {
+                dataType = when (rnd.nextInt(3)) {
+                    1    -> "char(1)"
+                    2    -> "char(2)"
+                    else -> "number(1)"
+                }
+                mandatory = rnd.nextBoolean() || rnd.nextBoolean()
+            }
+            exceptColumnNames += name
         }
 
         val keyCheck = Check(mainTable, mainWord, keyColumn.name, "ch").apply {
@@ -68,12 +92,9 @@ class Contriver(val model: Model, val dict: Dictionary) {
                    """.trimMargin()
         }
 
-        val inheritedTableNumber = rnd.nextInt(6).change(1 to 0)
-
         val columnsNumber =
-            if (inheritedTableNumber > 0) 1 + rnd.nextInt(7)
+            if (inheritance) 1 + rnd.nextInt(7)
             else 3 + rnd.nextInt(30)
-        val exceptColumnNames = newNameSet(mainAbb)
         populateTableWithColumns(mainTable, columnsNumber, exceptColumnNames)
         model.tables += mainTable
         usedNames += mainWord
@@ -84,7 +105,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
         for (k in 1..inheritedTableNumber) {
             val adjective = dict.guessAdjective(3, usedNames, exceptColumnNames)
             val catTable = Table(roleCategory, adjective, mainWord)
-            val catKeyColumn = keyColumn.copyTo(catTable).apply { mandatory = true; primary = true }
+            val catKeyColumn = keyColumn.copyToTable(catTable).apply { mandatory = true; primary = true }
             val reference = Reference(catTable, mainTable, *(catTable.nameWords + "fk"))
             reference.domesticColumns = arrayOf(catKeyColumn)
             reference.foreignColumns = arrayOf(keyColumn)
@@ -94,15 +115,19 @@ class Contriver(val model: Model, val dict: Dictionary) {
             model.tables += catTable
             usedNames += catTable.name
             usedNames += reference.name
+            mainTable.inheritedTables += catTable
         }
+
+        if (inheritance) inventViewsForInheritance(mainTable)
+        else inventViewsForSingleTable(mainTable)
     }
 
     private fun populateTableWithColumns(table: Table, columnsNumber: Int, exceptColumnNames: MutableSet<String>) {
         val indexColumns: MutableList<Column>? = rnd.nextBoolean ().then { ArrayList<Column>() }
         for (k in 1..columnsNumber) {
             val cName = dict.guessNoun(5, exceptColumnNames, excludedMinorWords)
-            val column = Column(table, cName).apply {
-                dataType = guessSimpleDataType()
+            val column = TableColumn(table, cName).apply {
+                setDataTypeAndDefault(guessSimpleDataType())
                 mandatory = "default" in dataType || rnd.nextBoolean() && rnd.nextBoolean()
             }
             exceptColumnNames += cName
@@ -121,21 +146,87 @@ class Contriver(val model: Model, val dict: Dictionary) {
         }
     }
 
+    private fun inventViewsForSingleTable(table: Table) {
+        // Stats
+        val discriminantColumn = table.columns.firstOrNull { it.dataType.startsWith("char") || it.dataType == "number(1)" }
+        val dataColumns = table.columns
+            .filter { it.dataType.startsWith("number(") && it.dataType != "number(1)" && !it.name.endsWith("id") }
+        if (discriminantColumn != null && dataColumns.isNotEmpty()) {
+            val view = View(*(table.nameWords + "stats"))
+            view.baseTables += table
+            val keyColumn = discriminantColumn.copyToView(view)
+            for (column in dataColumns) {
+                val s = column.name
+                ViewColumn(view, "min($s) as ${s}_min", *(column.nameWords + "min"))
+                ViewColumn(view, "avg($s) as ${s}_avg", *(column.nameWords + "avg"))
+                ViewColumn(view, "max($s) as ${s}_max", *(column.nameWords + "max"))
+            }
+            view.clauseFrom = table.name
+            view.clauseGroup = keyColumn.name
+            if (!discriminantColumn.mandatory) view.clauseWhere = "${discriminantColumn.name} is not null"
+            view.withCheckOption = true
+            model.views += view
+            usedNames += view.name
+            table.associatedViews += view
+        }
+
+        // Empties
+        val nullableColumns = table.columns.filter { !it.mandatory }
+        if (nullableColumns.size >= 2) {
+            val view = View(*(table.nameWords + "empties"))
+            view.baseTables += table
+            for (c in table.columns.filter { it.mandatory }) {
+                c.copyToView(view)
+            }
+            view.clauseFrom = table.name
+            view.clauseWhere = nullableColumns.joinToString(separator = "\nand ") { "${it.name} is null" }
+            view.withReadOnly = true
+            model.views += view
+            usedNames += view.name
+            table.associatedViews += view
+        }
+    }
+
+
+    private fun inventViewsForInheritance(mainTable: Table) {
+        for (table in mainTable.inheritedTables) {
+
+            // Whole
+            val view = View(*(table.nameWords + "whole"))
+            view.baseTables += mainTable
+            view.baseTables += table
+            val alreadyNames = emptyNameSet()
+            for (c in mainTable.columns) {
+                c.copyToView(view)
+                alreadyNames += c.name
+            }
+            for (c in table.columns.filter { it.name !in alreadyNames }) {
+                c.copyToView(view)
+            }
+            view.clauseFrom = mainTable.name + " natural join " + table.name
+            view.withCheckOption = true
+            model.views += view
+            usedNames += view.name
+            table.associatedViews += view
+            
+        }
+    }
+
 
     private fun guessSimpleDataType(): String =
         when (rnd.nextInt(12)) {
             0    -> "char"
-            1    -> "char default ('${rnd.nextChar('A','Z')}')"
+            1    -> "char -> '${rnd.nextChar('A','Z')}'"
             2    -> "nchar(${2 + rnd.nextInt(7)})"
             3    -> "varchar(${10 + rnd.nextInt(100) * 10})"
             4    -> "nvarchar2(${40 + rnd.nextInt(10) * 40})"
-            5    -> "number(${1 + rnd.nextInt(4)}) default (0)"
-            6    -> "number(${1 + rnd.nextInt(5)}) default (-1)"
+            5    -> "number(${1 + rnd.nextInt(4)}) -> 0"
+            6    -> "number(${1 + rnd.nextInt(5)}) -> -1"
             7    -> "number(${1 + rnd.nextInt(6)})"
             8    -> "number(${1 + rnd.nextInt(7)})"
             9    -> "date"
-            10   -> "date default (trunc(sysdate))"
-            11   -> "date default (sysdate)"
+            10   -> "date -> trunc(sysdate)"
+            11   -> "date -> sysdate"
             else -> "char"
         }
 
