@@ -113,6 +113,8 @@ class Table (val role: TableRole, vararg nameWords: String) : MajorObject(*nameW
     val inheritedTables = ArrayList<Table>()
     val dependentOnTables = ArrayList<Table>()
 
+    var adjective: String? = null
+
     val primaryKeySize: Int
         get() = columns.stream().filter(Column::primary).count().toInt()
 

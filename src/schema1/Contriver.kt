@@ -107,19 +107,20 @@ class Contriver(val model: Model, val dict: Dictionary) {
 
         for (k in 1..inheritedTableNumber) {
             val adjective = dict.guessAdjective(3, usedNames, exceptColumnNames)
-            val catTable = Table(roleCategory, adjective, mainWord)
-            val catKeyColumn = keyColumn.copyToTable(catTable).apply { mandatory = true; primary = true }
-            val reference = Reference(catTable, mainTable, *(catTable.nameWords + "fk"))
+            val inhTable = Table(roleCategory, adjective, mainWord)
+            inhTable.adjective = adjective
+            val catKeyColumn = keyColumn.copyToTable(inhTable).apply { mandatory = true; primary = true }
+            val reference = Reference(inhTable, mainTable, *(inhTable.nameWords + "fk"))
             reference.domesticColumns = arrayOf(catKeyColumn)
             reference.foreignColumns = arrayOf(keyColumn)
             reference.cascade = true
-            catTable.references += reference
-            populateTableWithColumns(catTable, 1 + rnd.nextInt(26), exceptColumnNames)
-            model.tables += catTable
-            model.order += catTable
-            usedNames += catTable.name
+            inhTable.references += reference
+            populateTableWithColumns(inhTable, 1 + rnd.nextInt(26), exceptColumnNames)
+            model.tables += inhTable
+            model.order += inhTable
+            usedNames += inhTable.name
             usedNames += reference.name
-            mainTable.inheritedTables += catTable
+            mainTable.inheritedTables += inhTable
         }
 
         if (inheritance) inventViewsForInheritance(mainTable)
@@ -195,9 +196,8 @@ class Contriver(val model: Model, val dict: Dictionary) {
 
 
     private fun inventViewsForInheritance(mainTable: Table) {
+        // Whole
         for (table in mainTable.inheritedTables) {
-
-            // Whole
             val view = View(*(table.nameWords + "whole"))
             view.baseTables += mainTable
             view.baseTables += table
@@ -216,11 +216,33 @@ class Contriver(val model: Model, val dict: Dictionary) {
             table.associatedViews += view
             model.order += view
         }
+
+        // Coupled views
+        val inhTables: List<Table> = mainTable.inheritedTables.filter { it.adjective != null }
+        if (inhTables.size >= 3 && mainTable.nameWords.size == 1) {
+            for (tab1 in inhTables) for (tab2 in inhTables) {
+                if (tab1 === tab2) continue
+                if (!rnd.nextBoolean()) continue
+                val view = View(tab1.adjective!!, tab2.adjective!!, mainTable.name)
+                for (c in mainTable.columns) c.copyToView(view, true)
+                for (c in tab1.columns) if (!c.primary) c.copyToView(view, true)
+                for (c in tab2.columns) if (!c.primary) c.copyToView(view, true)
+                view.clauseFrom = """|${mainTable.name}
+                                     |left join ${tab1.name} on ${mainTable.name}.id = ${tab1.name}
+                                     |left join ${tab2.name} on ${mainTable.name}.id = ${tab2.name}
+                                  """.trimMargin()
+                view.withCheckOption = true
+                model.views += view
+                usedNames += view.name
+                mainTable.associatedViews += view
+                model.order += view
+            }
+        }
     }
 
 
     private fun guessSimpleDataType(): String =
-        when (rnd.nextInt(12)) {
+        when (rnd.nextInt(13)) {
             0    -> "char"
             1    -> "char -> '${rnd.nextChar('A','Z')}'"
             2    -> "nchar(${2 + rnd.nextInt(7)})"
@@ -233,6 +255,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
             9    -> "date"
             10   -> "date -> trunc(sysdate)"
             11   -> "date -> sysdate"
+            12   -> "raw(${4 + rnd.nextInt(16)*4})"
             else -> "char"
         }
 
