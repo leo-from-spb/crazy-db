@@ -8,6 +8,8 @@ import lb.crazydb.gears.emptyNameSet
 
 class Model {
 
+    val order     = ArrayList<MajorObject>()
+
     val sequences = ArrayList<Sequence>()
     val tables    = ArrayList<Table>()
     val views     = ArrayList<View>()
@@ -23,6 +25,12 @@ class Model {
 
 
 
+////// ABSTRACT HIERARCHY \\\\\\
+
+
+/**
+ * Every object or a detail with it's own name.
+ */
 sealed class Entity(vararg nameWords: String) {
 
     val nameWords: Array<out String>
@@ -39,7 +47,42 @@ sealed class Entity(vararg nameWords: String) {
 }
 
 
-class Sequence (vararg nameWords: String) : Entity(*nameWords) {
+/**
+ * Schema object — an object which name must be unique in the schema scope.
+ */
+sealed class SchemaObject(vararg nameWords: String) : Entity(*nameWords) {
+
+}
+
+/**
+ * Independent object (which can be created without other objects),
+ * i.e. table, view, routine.
+ */
+sealed class MajorObject(vararg nameWords: String) : SchemaObject(*nameWords) {
+
+}
+
+/**
+ * Minor schema object — a detail of another object but with a name in the schema scope,
+ * i.e. index, constraint, trigger.
+ */
+sealed class MinorObject(val host: MajorObject, vararg nameWords: String) : SchemaObject(*nameWords) {
+
+}
+
+/**
+ * Detail, which name is unique in the host's scope, i.e. column.
+ */
+sealed class InnerObject(val host: MajorObject, vararg nameWords: String) : Entity(*nameWords) {
+
+}
+
+
+
+////// OBJECTS \\\\\\
+
+
+class Sequence (vararg nameWords: String) : MajorObject(*nameWords) {
 
     var startWith: Long = 1L
 
@@ -56,7 +99,7 @@ enum class TableRole {
 }
 
 
-class Table (val role: TableRole, vararg nameWords: String) : Entity(*nameWords) {
+class Table (val role: TableRole, vararg nameWords: String) : MajorObject(*nameWords) {
 
     val columns = ArrayList<TableColumn>()
     val indices = ArrayList<Index>()
@@ -76,7 +119,7 @@ class Table (val role: TableRole, vararg nameWords: String) : Entity(*nameWords)
 }
 
 
-class Check (val table: Table, vararg nameWords: String) : Entity(*nameWords) {
+class Check (val table: Table, vararg nameWords: String) : MinorObject(table, *nameWords) {
 
     var predicate: String = "1 is not null"
 
@@ -87,7 +130,7 @@ class Check (val table: Table, vararg nameWords: String) : Entity(*nameWords) {
 }
 
 
-class View (vararg nameWords: String) : Entity(*nameWords) {
+class View (vararg nameWords: String) : MajorObject(*nameWords) {
     val columns = ArrayList<ViewColumn>()
     val baseTables = ArrayList<Table>()
 
@@ -100,7 +143,7 @@ class View (vararg nameWords: String) : Entity(*nameWords) {
 }
 
 
-sealed class Column (val host: Entity, vararg nameWords: String) : Entity(*nameWords) {
+sealed class Column (host: MajorObject, vararg nameWords: String) : InnerObject(host, *nameWords) {
 
     var mandatory = false
     var primary = false
@@ -165,7 +208,7 @@ class ViewColumn (val view: View, expression: String, vararg nameWords: String) 
 }
 
 
-class Index (val table: Table, vararg nameWords: String) : Entity(*nameWords) {
+class Index (val table: Table, vararg nameWords: String) : MinorObject(table, *nameWords) {
 
     var unique = false
     var columns: List<Column> = emptyList()
@@ -177,7 +220,7 @@ class Index (val table: Table, vararg nameWords: String) : Entity(*nameWords) {
 }
 
 
-class Reference (val table: Table, val foreignTable: Table, vararg nameWords: String) : Entity(*nameWords) {
+class Reference (table: Table, val foreignTable: Table, vararg nameWords: String) : MinorObject(table, *nameWords) {
 
     var domesticColumns: Array<Column> = emptyArray()
     var foreignColumns: Array<Column> = emptyArray()
@@ -199,7 +242,7 @@ enum class TriggerEvent (val word: String) {
 }
 
 
-class Trigger (val table: Table, vararg nameWords: String) : Entity(*nameWords) {
+class Trigger (table: Table, vararg nameWords: String) : MinorObject(table, *nameWords) {
 
     var incidence: TriggerIncidence = trigBefore
     var event: TriggerEvent = trigOnInsert

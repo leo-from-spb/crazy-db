@@ -8,43 +8,59 @@ import java.nio.file.Path
 
 class Producer (val model: Model) {
 
-    val generatedSequences: MutableSet<Sequence> = HashSet()
-    val generatedTables:    MutableSet<Table>    = HashSet()
-    val generatedViews:     MutableSet<View>     = HashSet()
+    val produced: MutableSet<SchemaObject> = HashSet(1000000)
+
+    private var writer: BufferedWriter? = null
 
 
     fun produceAll() {
         val tablesFile = Path.of("tables.sql")
-        Files.newBufferedWriter(tablesFile).use { writer ->
-            produceTables(model.tables, writer)
+        this.writer = Files.newBufferedWriter(tablesFile)
+        try {
+            produceScript(model.order)
         }
-        say("Produced: \n" +
-            "\t${generatedSequences.size}\tsequences,\n" +
-            "\t${generatedTables.size}\ttables,\n" +
-            "\t${generatedViews.size}\tviews.\n")
+        finally {
+            this.writer!!.close()
+            this.writer = null
+        }
+
+        printSummary()
     }
 
 
-    fun produceTables(tables: Collection<Table>, writer: BufferedWriter) {
-        for (table in tables) {
-            if (table in generatedTables) continue
-            val text: String = generateTable(table)
-            assert(text.endsWith('\n'))
-            writer.write(text)
-            generatedTables += table
+    fun produceScript(objects: Collection<SchemaObject>) {
+        for (obj in objects) produceObject(obj)
+    }
+
+    private fun produceObject(o: SchemaObject) {
+        when (o) {
+            is Sequence -> produceSequence(o)
+            is Table    -> produceTable(o)
+            is View     -> produceView(o)
+            is Trigger  -> produceTrigger(o)
         }
     }
 
-    private fun generateTable(table: Table): String {
+    private fun produceSequence(sequence: Sequence) {
+        if (sequence in produced) return
+
+        val b = StringBuilder(1024)
+
+        b.phrase("create sequence", sequence.name).eoln()
+        if (sequence.startWith != 1L) b.tab().phrase("start with", sequence.startWith.toString()).eoln()
+        b.append("/\n\n")
+
+        write(b)
+        produced += sequence
+    }
+
+    private fun produceTable(table: Table) {
+        if (table in produced) return
+
         val b = StringBuilder(1024)
 
         val sequence = table.associatedSequence
-        if (sequence != null && sequence !in generatedSequences) {
-            b.phrase("create sequence", sequence.name).eoln()
-            if (sequence.startWith != 1L) b.tab().phrase("start with", sequence.startWith.toString()).eoln()
-            b.append("/\n\n")
-            generatedSequences += sequence
-        }
+        if (sequence != null) produceSequence(sequence)
 
         val pks = table.primaryKeySize
         b.append("create table ").append(table.name).append('\n')
@@ -60,22 +76,20 @@ class Producer (val model: Model) {
         }
         for (i in table.indices.filter(Index::unique)) {
             b.tab().phrase("constraint", i.name, "unique", i.columns.parenthesized { it.name }).comma().eoln()
+            produced += i
         }
         for (r in table.references) {
             val columns = r.domesticColumns.parenthesized { it.name }
             val cascade = r.cascade.then("on delete cascade")
             b.tab().phrase("constraint", r.name, "foreign key", columns, "references", r.foreignTable.name, cascade).comma().eoln()
+            produced += r
         }
         for (ch in table.checks) {
             b.tab().phrase("constraint", ch.name, "check", '('+ch.predicate+')').comma().eoln()
+            produced += ch
         }
         b.removeEnding(',')
         b.append(")\n/\n\n")
-
-        for (i in table.indices.filter { !it.unique }) {
-            b.phrase("create index", i.name, "on", table.name, i.columns.parenthesized { it.name }).eoln()
-            b.append("/\n\n")
-        }
 
         for (trigger in table.triggers) {
             b.phrase("create trigger", trigger.name).eoln()
@@ -87,26 +101,101 @@ class Producer (val model: Model) {
             b.append("end;\n/\n\n")
         }
 
-        for (view in table.associatedViews) {
-            if (view in generatedViews) continue
-            b.phrase("create view", view.name, "as").eoln()
-            var first = true
-            for (c in view.columns) {
-                val begin = if (first) "select " else "       "
-                b.append(begin).phrase(c.expression).comma().eoln()
-                first = false
-            }
-            b.removeEnding()
-            if (view.clauseFrom != null) b.phrase("from", view.clauseFrom!! shiftTextBodyWith "     ").eoln()
-            if (view.clauseWhere != null) b.phrase("where", view.clauseWhere!! shiftTextBodyWith "  ").eoln()
-            if (view.clauseGroup != null) b.phrase("group by", view.clauseGroup!! shiftTextBodyWith "      ").eoln()
-            if (view.withCheckOption) b.append("with check option").eoln()
-            if (view.withReadOnly) b.append("with read only").eoln()
-            b.append("/\n\n")
-            generatedViews += view
-        }
+        write(b)
+        produced += table
 
-        return b.toString()
+        for (index in table.indices) produceIndex(index)
+        for (view in table.associatedViews) produceView(view)
+    }
+
+
+    private fun produceView(view: View) {
+        if (view in produced) return
+
+        val b = StringBuilder()
+        b.phrase("create view", view.name, "as").eoln()
+        var first = true
+        for (c in view.columns) {
+            val begin = if (first) "select " else "       "
+            b.append(begin).phrase(c.expression).comma().eoln()
+            first = false
+        }
+        b.removeEnding()
+        if (view.clauseFrom != null) b.phrase("from", view.clauseFrom!! shiftTextBodyWith "     ").eoln()
+        if (view.clauseWhere != null) b.phrase("where", view.clauseWhere!! shiftTextBodyWith "  ").eoln()
+        if (view.clauseGroup != null) b.phrase("group by", view.clauseGroup!! shiftTextBodyWith "      ").eoln()
+        if (view.withCheckOption) b.append("with check option").eoln()
+        if (view.withReadOnly) b.append("with read only").eoln()
+        b.append("/\n\n")
+
+        write(b)
+        produced += view
+    }
+
+
+    private fun produceIndex(index: Index) {
+        if (index in produced) return
+
+        val table = index.table
+        val uq = index.unique.then("unique")
+
+        val b = StringBuilder()
+
+        b.phrase("create", uq, "index", index.name, "on", table.name, index.columns.parenthesized { it.name }).eoln()
+        b.append("/\n\n")
+
+        write(b)
+        produced += index
+    }
+
+
+    private fun produceTrigger(trigger: Trigger) {
+        if (trigger in produced) return
+
+        val b = StringBuilder()
+
+        write(b)
+        produced += trigger
+    }
+
+
+    private fun write(text: CharSequence) {
+        val writer = this.writer ?: throw IllegalStateException("Writer is not initialized")
+        writer.write(text.toString())
+        if (!text.endsWith('\n')) writer.write("\n")
+    }
+
+
+    private fun printSummary() {
+        var sequences = 0
+        var tables    = 0
+        var views     = 0
+        var indices   = 0
+        var triggers  = 0
+        var fks       = 0
+        var checks    = 0
+
+        for (p in produced)
+            when (p) {
+                is Sequence  -> sequences++
+                is Table     -> tables++
+                is View      -> views++
+                is Index     -> indices++
+                is Trigger   -> triggers++
+                is Reference -> fks++
+                is Check     -> checks++
+            }
+
+        val message = """|Generated:
+                         |~$sequences~sequences
+                         |~$tables~tables
+                         |~$views~views
+                         |~$indices~indices
+                         |~$triggers~triggers
+                         |~$fks~foreign keys
+                         |~$checks~checks
+                      """.trimMargin().replace('~','\t')
+        say(message)
     }
 
 }

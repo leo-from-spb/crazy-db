@@ -81,6 +81,11 @@ class Contriver(val model: Model, val dict: Dictionary) {
             predicate = keyColumn.name + " > 0"
         }
 
+        val columnsNumber =
+            if (inheritance) 1 + rnd.nextInt(7)
+            else 3 + rnd.nextInt(30)
+        populateTableWithColumns(mainTable, columnsNumber, exceptColumnNames)
+
         val trigger = Trigger(mainTable, *(mainTable.nameWords + "id" + "trg")).apply {
             incidence = trigBefore
             event = trigOnInsert
@@ -92,11 +97,9 @@ class Contriver(val model: Model, val dict: Dictionary) {
                    """.trimMargin()
         }
 
-        val columnsNumber =
-            if (inheritance) 1 + rnd.nextInt(7)
-            else 3 + rnd.nextInt(30)
-        populateTableWithColumns(mainTable, columnsNumber, exceptColumnNames)
         model.tables += mainTable
+        model.order += mainTable
+
         usedNames += mainWord
         usedNames += mainAbb
         usedNames += keyCheck.name
@@ -113,6 +116,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
             catTable.references += reference
             populateTableWithColumns(catTable, 1 + rnd.nextInt(26), exceptColumnNames)
             model.tables += catTable
+            model.order += catTable
             usedNames += catTable.name
             usedNames += reference.name
             mainTable.inheritedTables += catTable
@@ -168,6 +172,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
             model.views += view
             usedNames += view.name
             table.associatedViews += view
+            model.order += view
         }
 
         // Empties
@@ -184,6 +189,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
             model.views += view
             usedNames += view.name
             table.associatedViews += view
+            model.order += view
         }
     }
 
@@ -208,7 +214,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
             model.views += view
             usedNames += view.name
             table.associatedViews += view
-            
+            model.order += view
         }
     }
 
