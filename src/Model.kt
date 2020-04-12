@@ -60,6 +60,8 @@ sealed class SchemaObject(vararg nameWords: String) : Entity(*nameWords) {
  */
 sealed class MajorObject(vararg nameWords: String) : SchemaObject(*nameWords) {
 
+    var fileNr = 0
+
 }
 
 /**
@@ -245,6 +247,8 @@ enum class TriggerEvent (val word: String) {
 
 
 class Trigger (table: Table, vararg nameWords: String) : MinorObject(table, *nameWords) {
+
+    val table: Table get() = host as Table
 
     var incidence: TriggerIncidence = trigBefore
     var event: TriggerEvent = trigOnInsert

@@ -30,17 +30,22 @@ class Contriver(val model: Model, val dict: Dictionary) {
         usedNames += specialWords
     }
 
-
-    fun inventPortions(number: Int) {
-        for (i in 1 .. number) inventPortion(i)
+    fun inventCrazySchema(numberOfFiles: Int, numberOfPortionsPerFile: Int) {
+        for (fileNr in 1 .. numberOfFiles) inventFile(fileNr, numberOfPortionsPerFile)
     }
 
-    private fun inventPortion(portionIndex: Int) {
+    fun inventFile(fileNr: Int, numberOfPortions: Int) {
+        for (i in 1 .. numberOfPortions) inventPortion(fileNr, i)
+    }
+
+    private fun inventPortion(fileNr: Int, portionIndex: Int) {
         val mainWord = dict.guessNoun(6, usedNames)
         val mainAbb = mainWord.abb(4)
         if (mainAbb.length < 2 || mainAbb in usedNames) return
 
         val mainSequence = Sequence(mainWord, "seq")
+        mainSequence.fileNr = fileNr
+        mainSequence.startWith = portionIndex.toLong()
         model.sequences += mainSequence
         usedNames += mainSequence.name
 
@@ -48,6 +53,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
         val inheritedTableNumber = if (inheritance) 2 + rnd.nextInt(6) else 0
 
         val mainTable = Table(roleMain, mainWord)
+        mainTable.fileNr = fileNr
         mainTable.associatedSequence = mainSequence
 
         val exceptColumnNames = newNameSet(mainAbb)
@@ -108,6 +114,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
         for (k in 1..inheritedTableNumber) {
             val adjective = dict.guessAdjective(3, usedNames, exceptColumnNames)
             val inhTable = Table(roleCategory, adjective, mainWord)
+            inhTable.fileNr = fileNr
             inhTable.adjective = adjective
             val catKeyColumn = keyColumn.copyToTable(inhTable).apply { mandatory = true; primary = true }
             val reference = Reference(inhTable, mainTable, *(inhTable.nameWords + "fk"))
@@ -131,13 +138,34 @@ class Contriver(val model: Model, val dict: Dictionary) {
         val indexColumns: MutableList<Column>? = rnd.nextBoolean ().then { ArrayList<Column>() }
         for (k in 1..columnsNumber) {
             val cName = dict.guessNoun(5, exceptColumnNames, excludedMinorWords)
+            val dt = guessSimpleDataType()
             val column = TableColumn(table, cName).apply {
-                setDataTypeAndDefault(guessSimpleDataType())
+                setDataTypeAndDefault(dt)
                 mandatory = "default" in dataType || rnd.nextBoolean() && rnd.nextBoolean()
             }
             exceptColumnNames += cName
             if (indexColumns != null && rnd.nextInt(2) == 0 && "number" in column.dataType) {
                 indexColumns.add(column)
+            }
+            if (rnd.nextInt(3) == 0 && "number" in dt) {
+                val digit = 2 + rnd.nextInt(8)
+                val r: IntRange? =
+                    when (dt) {
+                        "number(2)"  -> 1..digit*10
+                        "number(3)"  -> 1..digit*100
+                        "number(4)"  -> 1..digit*1000
+                        "number(5)"  -> 1..digit*10000
+                        "number(6)"  -> 1..digit*100000
+                        "number(7)"  -> 1..digit*1000000
+                        "number(8)"  -> 1..digit*10000000
+                        "number(9)"  -> 1..digit*100000000
+                        "number(10)" -> 1..2000000000
+                        else         -> null
+                    }
+                if (r != null)
+                    Check(table, *(table.nameWords + cName + "ch")).apply {
+                        predicate = "$cName between ${r.first} and ${r.last}"
+                    }
             }
         }
         if (indexColumns != null && indexColumns.isNotEmpty()) {
@@ -159,6 +187,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
         if (discriminantColumn != null && dataColumns.isNotEmpty()) {
             val view = View(*(table.nameWords + "stats"))
             view.baseTables += table
+            view.fileNr = table.fileNr
             val keyColumn = discriminantColumn.copyToView(view)
             for (column in dataColumns) {
                 val s = column.name
@@ -181,6 +210,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
         if (nullableColumns.size >= 2) {
             val view = View(*(table.nameWords + "empties"))
             view.baseTables += table
+            view.fileNr = table.fileNr
             for (c in table.columns.filter { it.mandatory }) {
                 c.copyToView(view)
             }
@@ -201,6 +231,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
             val view = View(*(table.nameWords + "whole"))
             view.baseTables += mainTable
             view.baseTables += table
+            view.fileNr = table.fileNr
             val alreadyNames = emptyNameSet()
             for (c in mainTable.columns) {
                 c.copyToView(view)
@@ -224,17 +255,20 @@ class Contriver(val model: Model, val dict: Dictionary) {
                 if (tab1 === tab2) continue
                 if (!rnd.nextBoolean()) continue
                 val view = View(tab1.adjective!!, tab2.adjective!!, mainTable.name)
+                view.baseTables += mainTable
+                view.baseTables += tab1
+                view.baseTables += tab2
+                view.fileNr = Math.max(tab1.fileNr, tab2.fileNr)
                 for (c in mainTable.columns) c.copyToView(view, true)
                 for (c in tab1.columns) if (!c.primary) c.copyToView(view, true)
                 for (c in tab2.columns) if (!c.primary) c.copyToView(view, true)
                 view.clauseFrom = """|${mainTable.name}
-                                     |left join ${tab1.name} on ${mainTable.name}.id = ${tab1.name}
-                                     |left join ${tab2.name} on ${mainTable.name}.id = ${tab2.name}
+                                     |left join ${tab1.name} on ${mainTable.name}.id = ${tab1.name}.id
+                                     |left join ${tab2.name} on ${mainTable.name}.id = ${tab2.name}.id
                                   """.trimMargin()
                 view.withCheckOption = true
                 model.views += view
                 usedNames += view.name
-                mainTable.associatedViews += view
                 model.order += view
             }
         }

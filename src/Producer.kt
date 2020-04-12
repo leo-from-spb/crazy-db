@@ -4,27 +4,56 @@ import lb.crazydb.gears.*
 import java.io.BufferedWriter
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.*
+import kotlin.collections.HashSet
+import kotlin.streams.toList
 
 
 class Producer (val model: Model) {
 
+    companion object {
+        val scriptsDir = Path.of("scripts")
+    }
+
     val produced: MutableSet<SchemaObject> = HashSet(1000000)
+
+    val producedFiles = TreeSet<Int>()
 
     private var writer: BufferedWriter? = null
 
 
-    fun produceAll() {
-        val tablesFile = Path.of("tables.sql")
+    fun produceWholeScript() {
+        val fileNrs = model.order.stream()
+            .map { it.fileNr }
+            .distinct()
+            .sorted()
+            .toList()
+        for (fileNr in fileNrs) produceFile(fileNr)
+
+        produceCombiningFile()
+        printSummary()
+    }
+
+    fun produceFile(fileNr: Int) {
+        val objects: List<SchemaObject> =
+            model.order.stream()
+                .filter { it.fileNr == fileNr }
+                .filter { it !in produced }
+                .toList()
+        if (objects.isEmpty()) return
+
+        val tablesFile = scriptsDir.resolve("script_$fileNr.sql")
+
         this.writer = Files.newBufferedWriter(tablesFile)
         try {
-            produceScript(model.order)
+            produceScript(objects)
         }
         finally {
             this.writer!!.close()
             this.writer = null
         }
 
-        printSummary()
+        producedFiles += fileNr
     }
 
 
@@ -91,20 +120,11 @@ class Producer (val model: Model) {
         b.removeEnding(',')
         b.append(")\n/\n\n")
 
-        for (trigger in table.triggers) {
-            b.phrase("create trigger", trigger.name).eoln()
-            b.tab().phrase(trigger.incidence.word, trigger.event.word, "on", table.name).eoln()
-            if (trigger.forEachRow) b.tab().append("for each row").eoln()
-            if (trigger.condition != null) b.tab().append("when (",trigger.condition,")\n")
-            b.append("begin\n")
-            b.append(trigger.body shiftTextWith '\t').eolnIfNo()
-            b.append("end;\n/\n\n")
-        }
-
         write(b)
         produced += table
 
         for (index in table.indices) produceIndex(index)
+        for (trigger in table.triggers) produceTrigger(trigger)
         for (view in table.associatedViews) produceView(view)
     }
 
@@ -154,8 +174,41 @@ class Producer (val model: Model) {
 
         val b = StringBuilder()
 
+        b.phrase("create trigger", trigger.name).eoln()
+        b.tab().phrase(trigger.incidence.word, trigger.event.word, "on", trigger.table.name).eoln()
+        if (trigger.forEachRow) b.tab().append("for each row").eoln()
+        if (trigger.condition != null) b.tab().append("when (",trigger.condition,")\n")
+        b.append("begin\n")
+        b.append(trigger.body shiftTextWith '\t').eolnIfNo()
+        b.append("end;\n/\n\n")
+
         write(b)
         produced += trigger
+    }
+
+
+    private fun produceCombiningFile() {
+        val combineFile = scriptsDir.resolve("script.sql")
+        this.writer = Files.newBufferedWriter(combineFile)
+        try {
+            produceCombiningFileContent()
+        }
+        finally {
+            this.writer!!.close()
+            this.writer = null
+        }
+    }
+
+    private fun produceCombiningFileContent() {
+        val b = StringBuilder()
+        b.append("-- CRAZY DB --\n\n")
+
+        for (fileNr in producedFiles) {
+            b.append("@@script_").append(fileNr).eoln()
+        }
+
+        b.append("\n-- OK --\n")
+        write(b)
     }
 
 
@@ -187,6 +240,7 @@ class Producer (val model: Model) {
             }
 
         val message = """|Generated:
+                         |~${producedFiles.size}~files
                          |~$sequences~sequences
                          |~$tables~tables
                          |~$views~views
