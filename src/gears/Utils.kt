@@ -123,3 +123,5 @@ fun Collection<String>.parenthesized(): String = joinToString(prefix = "(", post
 fun<T> Array<T>.parenthesized(transform: (T) -> CharSequence): String = joinToString(prefix = "(", postfix = ")", transform = transform)
 fun<T> Collection<T>.parenthesized(transform: (T) -> CharSequence): String = joinToString(prefix = "(", postfix = ")", transform = transform)
 
+
+val nop: Nothing? inline get() = null

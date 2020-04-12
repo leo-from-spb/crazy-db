@@ -5,7 +5,6 @@ import java.io.BufferedWriter
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
-import kotlin.collections.HashSet
 import kotlin.streams.toList
 
 
@@ -15,7 +14,7 @@ class Producer (val model: Model) {
         val scriptsDir = Path.of("scripts")
     }
 
-    val produced: MutableSet<SchemaObject> = HashSet(1000000)
+    val produced: MutableSet<SchemaObject> = LinkedHashSet(1000000)
 
     val producedFiles = TreeSet<Int>()
 
@@ -31,6 +30,7 @@ class Producer (val model: Model) {
         for (fileNr in fileNrs) produceFile(fileNr)
 
         produceCombiningFile()
+        produceDropFile()
         printSummary()
     }
 
@@ -42,15 +42,8 @@ class Producer (val model: Model) {
                 .toList()
         if (objects.isEmpty()) return
 
-        val tablesFile = scriptsDir.resolve("script_$fileNr.sql")
-
-        this.writer = Files.newBufferedWriter(tablesFile)
-        try {
+        inFile("create_$fileNr.sql") {
             produceScript(objects)
-        }
-        finally {
-            this.writer!!.close()
-            this.writer = null
         }
 
         producedFiles += fileNr
@@ -188,27 +181,65 @@ class Producer (val model: Model) {
 
 
     private fun produceCombiningFile() {
-        val combineFile = scriptsDir.resolve("script.sql")
-        this.writer = Files.newBufferedWriter(combineFile)
-        try {
+        inFile("create.sql") {
             produceCombiningFileContent()
-        }
-        finally {
-            this.writer!!.close()
-            this.writer = null
         }
     }
 
     private fun produceCombiningFileContent() {
         val b = StringBuilder()
-        b.append("-- CRAZY DB --\n\n")
+        b.append("-- CREATE CRAZY DB --\n\n")
 
         for (fileNr in producedFiles) {
-            b.append("@@script_").append(fileNr).eoln()
+            b.append("@@create_").append(fileNr).eoln()
         }
 
         b.append("\n-- OK --\n")
         write(b)
+    }
+
+
+    private fun produceDropFile() {
+        if (produced.isEmpty()) return
+        inFile("drop.sql") {
+            produceDropFileContent()
+        }
+    }
+
+    private fun produceDropFileContent() {
+        val objectsToDrop = produced.reversed().toList()
+
+        val b = StringBuilder()
+        b.append("-- DROP CRAZY DB --\n\n")
+
+        loop@
+        for (o in objectsToDrop) {
+            val name = o.name
+            when (o) {
+                is Sequence -> b.append("drop sequence $name")
+                is Table    -> b.append("drop table $name purge")
+                is View     -> b.append("drop view $name")
+                else        -> continue@loop
+            }
+            b.append(';').eoln()
+        }
+
+        b.append("\npurge recyclebin;\n")
+        b.append("\n-- OK --\n")
+        write(b)
+    }
+
+
+    fun inFile(fileName: String, block: () -> Unit) {
+        val file = scriptsDir.resolve(fileName)
+        this.writer = Files.newBufferedWriter(file)
+        try {
+            block()
+        }
+        finally {
+            this.writer!!.close()
+            this.writer = null
+        }
     }
 
 
