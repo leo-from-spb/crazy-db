@@ -10,7 +10,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 
-class Contriver(val model: Model, val dict: Dictionary) {
+class Contriver(val model: Model, val dict: Dictionary, val prefix: String) {
 
     val usedNames get() = model.usedNames
 
@@ -43,7 +43,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
         val mainAbb = mainWord.abb(4)
         if (mainAbb.length < 2 || mainAbb in usedNames) return
 
-        val mainSequence = Sequence(mainWord, "seq")
+        val mainSequence = Sequence(prefix, mainWord, "seq")
         mainSequence.fileNr = fileNr
         mainSequence.startWith = portionIndex.toLong()
         model.sequences += mainSequence
@@ -52,7 +52,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
         val inheritance = rnd.nextBoolean()
         val inheritedTableNumber = if (inheritance) 2 + rnd.nextInt(6) else 0
 
-        val mainTable = Table(roleMain, mainWord)
+        val mainTable = Table(roleMain, prefix, mainWord)
         mainTable.fileNr = fileNr
         mainTable.associatedSequence = mainSequence
 
@@ -83,7 +83,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
             exceptColumnNames += name
         }
 
-        val keyCheck = Check(mainTable, mainWord, keyColumn.name, "ch").apply {
+        val keyCheck = Check(mainTable, prefix, mainWord, keyColumn.name, "ch").apply {
             predicate = keyColumn.name + " > 0"
         }
 
@@ -113,7 +113,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
 
         for (k in 1..inheritedTableNumber) {
             val adjective = dict.guessAdjective(3, usedNames, exceptColumnNames)
-            val inhTable = Table(roleCategory, adjective, mainWord)
+            val inhTable = Table(roleCategory, prefix, adjective, mainWord)
             inhTable.fileNr = fileNr
             inhTable.adjective = adjective
             val catKeyColumn = keyColumn.copyToTable(inhTable).apply { mandatory = true; primary = true }
@@ -254,7 +254,7 @@ class Contriver(val model: Model, val dict: Dictionary) {
             for (tab1 in inhTables) for (tab2 in inhTables) {
                 if (tab1 === tab2) continue
                 if (!rnd.nextBoolean()) continue
-                val view = View(tab1.adjective!!, tab2.adjective!!, mainTable.name)
+                val view = View(prefix, tab1.adjective!!, tab2.adjective!!, mainTable.name)
                 view.baseTables += mainTable
                 view.baseTables += tab1
                 view.baseTables += tab2

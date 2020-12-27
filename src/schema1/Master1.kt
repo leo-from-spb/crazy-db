@@ -9,8 +9,8 @@ object Master1 {
     fun generate() {
         val dict = Dictionary()
         val model = Model()
-        val contriver = Contriver(model, dict)
-        contriver.inventCrazySchema(7, 10)
+        val contriver = Contriver(model, dict, "cr1")
+        contriver.inventCrazySchema(3, 20)
         val producer = Producer(model)
         producer.produceWholeScript()
     }

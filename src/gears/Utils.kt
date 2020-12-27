@@ -96,7 +96,6 @@ operator fun Array<out String>.plus(s: String?): Array<out String> {
 }
 
 
-
 infix fun CharSequence.shiftTextWith(prefix: Char): CharSequence =
     when {
         this.isEmpty() -> this

@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CrazyDB" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="lb.crazydb.CrazyDB" />
+    <module name="crazy42" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
