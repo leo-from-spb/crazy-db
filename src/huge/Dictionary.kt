@@ -2,11 +2,12 @@ package lb.crazydb.huge
 
 import lb.crazydb.gears.WordLoader
 import lb.crazydb.gears.panic
+import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.random.Random
 
 
-class Dictionary {
+class Dictionary (val folderName: String) {
 
     val nouns: List<String>
     val verbs: List<String>
@@ -15,10 +16,22 @@ class Dictionary {
     private val rnd: Random
 
 
-    init {
-        val loader = WordLoader(Path.of("./dict/huge"))
+    companion object {
+        val dictionariesPath: Path = Path.of("./dict")
 
-        println("Loading dictionaries:")
+        init {
+            assert(Files.isDirectory(dictionariesPath)) { "The path $dictionariesPath should be a directory with dictionaries" }
+        }
+    }
+
+
+    init {
+
+        val dictionaryPath = dictionariesPath.resolve(folderName)
+
+        val loader = WordLoader(dictionaryPath)
+
+        println("Loading dictionary:")
 
         nouns = loader.loadWords("nouns.txt")
         verbs = loader.loadWords("verbs.txt")

@@ -4,6 +4,7 @@ import lb.crazydb.TriggerEvent.trigOnInsert
 import lb.crazydb.TriggerIncidence.trigBefore
 import lb.crazydb.gears.ReservedWords
 import lb.crazydb.gears.emptyNameSet
+import java.util.concurrent.atomic.AtomicInteger
 
 
 class Model {
@@ -22,6 +23,9 @@ class Model {
     }
 
 }
+
+
+private val internalIdSequence = AtomicInteger()
 
 
 
@@ -60,7 +64,23 @@ sealed class SchemaObject(vararg nameWords: String) : Entity(*nameWords) {
  */
 sealed class MajorObject(vararg nameWords: String) : SchemaObject(*nameWords) {
 
+    val intId = internalIdSequence.incrementAndGet()
+
+    var filePrefix: String = ""
     var fileNr = 0
+
+    val fileName: String
+        get() = if (fileNr > 0) filePrefix + '_' + fileNr else filePrefix
+
+    fun assignFile(filePrefix: String, fileNr: Int) {
+        this.filePrefix = filePrefix
+        this.fileNr = fileNr
+    }
+
+    fun assignFileFrom(originalObject: MajorObject) {
+        this.filePrefix = originalObject.filePrefix
+        this.fileNr = originalObject.fileNr
+    }
 
 }
 

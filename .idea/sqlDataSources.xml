@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SqlDataSourceStorage">
+    <option name="dataSources">
+      <list>
+        <State>
+          <option name="id" value="a39afc62-61d2-427c-bc27-10fdfb11a185" />
+          <option name="name" value="Generated Script" />
+          <option name="urls">
+            <array>
+              <option value="file://$PROJECT_DIR$/scripts" />
+            </array>
+          </option>
+        </State>
+      </list>
+    </option>
+  </component>
+</project>

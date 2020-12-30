@@ -6,13 +6,27 @@ import lb.crazydb.Producer
 
 object HugeMaster {
 
+    val tasks = arrayOf(
+            HugeTask("hg1", "huge", 1, 10),
+            HugeTask("hg2", "huge", 2, 15),
+            HugeTask("hg3", "huge", 3, 25)
+    )
+
+
     fun generate() {
-        val dict = Dictionary()
         val model = Model()
-        val contriver = HugeContriver(model, dict, "hg")
-        contriver.inventCrazySchema(3, 20)
+
+        for (task in tasks) generateOneArea(model, task)
+
         val producer = Producer(model)
         producer.produceWholeScript()
+    }
+
+    
+    fun generateOneArea(model: Model, task: HugeTask) {
+        val dict = Dictionary(task.dictionaryFolderName)
+        val contriver = HugeContriver(model, dict, task.areaPrefix)
+        contriver.inventCrazySchema(task.filesNumber, task.portionsNumber)
     }
 
 }

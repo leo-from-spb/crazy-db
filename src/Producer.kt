@@ -11,42 +11,42 @@ import kotlin.streams.toList
 class Producer (val model: Model) {
 
     companion object {
-        val scriptsDir = Path.of("scripts")
+        val scriptsDir: Path = Path.of("scripts")
     }
 
     val produced: MutableSet<SchemaObject> = LinkedHashSet(1000000)
 
-    val producedFiles = TreeSet<Int>()
+    val producedFiles = TreeSet(String.CASE_INSENSITIVE_ORDER)
 
     private var writer: BufferedWriter? = null
 
 
     fun produceWholeScript() {
-        val fileNrs = model.order.stream()
-            .map { it.fileNr }
+        val fileNames = model.order.stream()
+            .map { it.fileName }
             .distinct()
             .sorted()
             .toList()
-        for (fileNr in fileNrs) produceFile(fileNr)
+        for (fileName in fileNames) produceFile(fileName)
 
         produceCombiningFile()
         produceDropFile()
         printSummary()
     }
 
-    fun produceFile(fileNr: Int) {
+    fun produceFile(fileName: String) {
         val objects: List<SchemaObject> =
             model.order.stream()
-                .filter { it.fileNr == fileNr }
+                .filter { it.fileName == fileName }
                 .filter { it !in produced }
                 .toList()
         if (objects.isEmpty()) return
 
-        inFile("create_$fileNr.sql") {
+        inFile("create_$fileName.sql") {
             produceScript(objects)
         }
 
-        producedFiles += fileNr
+        producedFiles += fileName
     }
 
 

@@ -10,7 +10,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 
-class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) {
+class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: String) {
 
     val usedNames get() = model.usedNames
 
@@ -43,8 +43,8 @@ class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) 
         val mainAbb = mainWord.abb(4)
         if (mainAbb.length < 2 || mainAbb in usedNames) return
 
-        val mainSequence = Sequence(prefix, mainWord, "seq")
-        mainSequence.fileNr = fileNr
+        val mainSequence = Sequence(areaPrefix, mainWord, "seq")
+        mainSequence.assignFile(areaPrefix, fileNr)
         mainSequence.startWith = portionIndex.toLong()
         model.sequences += mainSequence
         usedNames += mainSequence.name
@@ -52,8 +52,8 @@ class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) 
         val inheritance = rnd.nextBoolean()
         val inheritedTableNumber = if (inheritance) 2 + rnd.nextInt(6) else 0
 
-        val mainTable = Table(roleMain, prefix, mainWord)
-        mainTable.fileNr = fileNr
+        val mainTable = Table(roleMain, areaPrefix, mainWord)
+        mainTable.assignFile(areaPrefix, fileNr)
         mainTable.associatedSequence = mainSequence
 
         val exceptColumnNames = newNameSet(mainAbb)
@@ -83,7 +83,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) 
             exceptColumnNames += name
         }
 
-        val keyCheck = Check(mainTable, prefix, mainWord, keyColumn.name, "ch").apply {
+        val keyCheck = Check(mainTable, areaPrefix, mainWord, keyColumn.name, "ch").apply {
             predicate = keyColumn.name + " > 0"
         }
 
@@ -113,8 +113,8 @@ class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) 
 
         for (k in 1..inheritedTableNumber) {
             val adjective = dict.guessAdjective(3, usedNames, exceptColumnNames)
-            val inhTable = Table(roleCategory, prefix, adjective, mainWord)
-            inhTable.fileNr = fileNr
+            val inhTable = Table(roleCategory, areaPrefix, adjective, mainWord)
+            inhTable.assignFile(areaPrefix, fileNr)
             inhTable.adjective = adjective
             val catKeyColumn = keyColumn.copyToTable(inhTable).apply { mandatory = true; primary = true }
             val reference = Reference(inhTable, mainTable, *(inhTable.nameWords + "fk"))
@@ -187,7 +187,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) 
         if (discriminantColumn != null && dataColumns.isNotEmpty()) {
             val view = View(*(table.nameWords + "stats"))
             view.baseTables += table
-            view.fileNr = table.fileNr
+            view.assignFileFrom(table)
             val keyColumn = discriminantColumn.copyToView(view)
             for (column in dataColumns) {
                 val s = column.name
@@ -210,7 +210,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) 
         if (nullableColumns.size >= 2) {
             val view = View(*(table.nameWords + "empties"))
             view.baseTables += table
-            view.fileNr = table.fileNr
+            view.assignFileFrom(table)
             for (c in table.columns.filter { it.mandatory }) {
                 c.copyToView(view)
             }
@@ -231,7 +231,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) 
             val view = View(*(table.nameWords + "whole"))
             view.baseTables += mainTable
             view.baseTables += table
-            view.fileNr = table.fileNr
+            view.assignFileFrom(table)
             val alreadyNames = emptyNameSet()
             for (c in mainTable.columns) {
                 c.copyToView(view)
@@ -254,11 +254,12 @@ class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) 
             for (tab1 in inhTables) for (tab2 in inhTables) {
                 if (tab1 === tab2) continue
                 if (!rnd.nextBoolean()) continue
-                val view = View(prefix, tab1.adjective!!, tab2.adjective!!, mainTable.name)
+                val view = View(areaPrefix, tab1.adjective!!, tab2.adjective!!, mainTable.name)
                 view.baseTables += mainTable
                 view.baseTables += tab1
                 view.baseTables += tab2
-                view.fileNr = Math.max(tab1.fileNr, tab2.fileNr)
+                val laterTab = if (tab1.intId < tab2.intId) tab2 else tab1
+                view.assignFileFrom(laterTab)
                 for (c in mainTable.columns) c.copyToView(view, true)
                 for (c in tab1.columns) if (!c.primary) c.copyToView(view, true)
                 for (c in tab2.columns) if (!c.primary) c.copyToView(view, true)
