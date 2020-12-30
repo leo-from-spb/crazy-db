@@ -1,15 +1,15 @@
-package lb.crazydb.schema1
+package lb.crazydb.huge
 
 import lb.crazydb.Model
 import lb.crazydb.Producer
 
 
-object Master1 {
+object HugeMaster {
 
     fun generate() {
         val dict = Dictionary()
         val model = Model()
-        val contriver = Contriver(model, dict, "cr1")
+        val contriver = HugeContriver(model, dict, "hg")
         contriver.inventCrazySchema(3, 20)
         val producer = Producer(model)
         producer.produceWholeScript()

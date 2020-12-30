@@ -1,4 +1,4 @@
-package lb.crazydb.schema1
+package lb.crazydb.huge
 
 import lb.crazydb.gears.WordLoader
 import lb.crazydb.gears.panic
@@ -16,7 +16,7 @@ class Dictionary {
 
 
     init {
-        val loader = WordLoader(Path.of("./dict/1"))
+        val loader = WordLoader(Path.of("./dict/huge"))
 
         println("Loading dictionaries:")
 

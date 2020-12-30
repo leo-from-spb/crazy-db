@@ -1,4 +1,4 @@
-package lb.crazydb.schema1
+package lb.crazydb.huge
 
 import lb.crazydb.*
 import lb.crazydb.TableRole.roleCategory
@@ -10,7 +10,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 
-class Contriver(val model: Model, val dict: Dictionary, val prefix: String) {
+class HugeContriver(val model: Model, val dict: Dictionary, val prefix: String) {
 
     val usedNames get() = model.usedNames
 
