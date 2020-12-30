@@ -198,7 +198,6 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             view.clauseFrom = table.name
             view.clauseGroup = keyColumn.name
             if (!discriminantColumn.mandatory) view.clauseWhere = "${discriminantColumn.name} is not null"
-            view.withCheckOption = true
             model.views += view
             usedNames += view.name
             table.associatedViews += view
@@ -208,15 +207,18 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
         // Empties
         val nullableColumns = table.columns.filter { !it.mandatory }
         if (nullableColumns.size >= 2) {
-            val view = View(*(table.nameWords + "empties"))
+            val partial = rnd.nextBoolean()
+            val suffix = if (partial) "partial_empty" else "whole_empty"
+            val joinOperator = if (partial) "or" else "and"
+            val view = View(*(table.nameWords + suffix))
             view.baseTables += table
             view.assignFileFrom(table)
             for (c in table.columns.filter { it.mandatory }) {
                 c.copyToView(view)
             }
             view.clauseFrom = table.name
-            view.clauseWhere = nullableColumns.joinToString(separator = "\nand ") { "${it.name} is null" }
-            view.withReadOnly = true
+            view.clauseWhere = nullableColumns.joinToString(separator = "\n$joinOperator ") { "${it.name} is null" }
+            if (partial) view.withCheckOption = true else view.withReadOnly = true
             model.views += view
             usedNames += view.name
             table.associatedViews += view
@@ -267,7 +269,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
                                      |left join ${tab1.name} on ${mainTable.name}.id = ${tab1.name}.id
                                      |left join ${tab2.name} on ${mainTable.name}.id = ${tab2.name}.id
                                   """.trimMargin()
-                view.withCheckOption = true
+                view.withReadOnly = true
                 model.views += view
                 usedNames += view.name
                 model.order += view
