@@ -6,6 +6,7 @@ import lb.crazydb.TableRole.roleMain
 import lb.crazydb.TriggerEvent.trigOnInsert
 import lb.crazydb.TriggerIncidence.trigBefore
 import lb.crazydb.gears.*
+import lb.crazydb.gears.Dictionary
 import java.util.*
 import kotlin.collections.ArrayList
 

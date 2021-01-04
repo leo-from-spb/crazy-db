@@ -2,6 +2,7 @@ package lb.crazydb.huge
 
 import lb.crazydb.Model
 import lb.crazydb.Producer
+import lb.crazydb.gears.Dictionaries
 
 
 object HugeMaster {
@@ -24,7 +25,7 @@ object HugeMaster {
 
     
     fun generateOneArea(model: Model, task: HugeTask) {
-        val dict = Dictionary(task.dictionaryFolderName)
+        val dict = Dictionaries.obtain(task.dictionaryFolderName)
         val contriver = HugeContriver(model, dict, task.areaPrefix)
         contriver.inventCrazySchema(task.filesNumber, task.portionsNumber)
     }

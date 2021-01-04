@@ -1,7 +1,5 @@
-package lb.crazydb.huge
+package lb.crazydb.gears
 
-import lb.crazydb.gears.WordLoader
-import lb.crazydb.gears.panic
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.random.Random
@@ -31,16 +29,17 @@ class Dictionary (val folderName: String) {
 
         val loader = WordLoader(dictionaryPath)
 
-        println("Loading dictionary:")
+        println("Loading dictionary $folderName")
 
         nouns = loader.loadWords("nouns.txt")
         verbs = loader.loadWords("verbs.txt")
         adjectives = loader.loadWords("adjectives.txt")
 
-        println("""|nouns:      ${nouns.size}
-                   |verbs:      ${verbs.size}
-                   |adjectives: ${adjectives.size}
-                """.trimMargin())
+        println("""|Loaded:
+                   |¬${nouns.size}¬nouns
+                   |¬${verbs.size}¬verbs
+                   |¬${adjectives.size}¬adjectives
+                """.trimMargin().tabs())
 
         rnd = Random(System.currentTimeMillis() xor System.nanoTime())
     }

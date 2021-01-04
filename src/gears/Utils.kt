@@ -96,6 +96,9 @@ operator fun Array<out String>.plus(s: String?): Array<out String> {
 }
 
 
+fun String.tabs() = this.replace('¬', '\t')
+
+
 infix fun CharSequence.shiftTextWith(prefix: Char): CharSequence =
     when {
         this.isEmpty() -> this
