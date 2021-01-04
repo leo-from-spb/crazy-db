@@ -1,11 +1,10 @@
 package lb.crazydb.huge
 
 import lb.crazydb.Model
-import lb.crazydb.Producer
 import lb.crazydb.gears.Dictionaries
 
 
-object HugeMaster {
+class HugeMaster (val model: Model) {
 
     val tasks = arrayOf(
             HugeTask("hg1", "huge", 1, 10),
@@ -15,12 +14,8 @@ object HugeMaster {
 
 
     fun generate() {
-        val model = Model()
-
+        println("Generating 'Huge'…")
         for (task in tasks) generateOneArea(model, task)
-
-        val producer = Producer(model)
-        producer.produceWholeScript()
     }
 
     

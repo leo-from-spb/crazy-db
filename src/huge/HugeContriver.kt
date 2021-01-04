@@ -13,14 +13,14 @@ import kotlin.collections.ArrayList
 
 class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: String) {
 
-    val usedNames get() = model.usedNames
+    private val usedNames get() = model.usedNames
 
 
-    val specialWords: Set<String> = wordSetOf("ID", "NR", "ORDER_NR")
+    private val specialWords: Set<String> = wordSetOf("ID", "NR", "ORDER_NR")
 
-    val excludedMinorWords: Set<String>
+    private val excludedMinorWords: Set<String>
 
-    val rnd = Random(System.nanoTime() * 17L)
+    private val rnd = Random(System.nanoTime() * 17L + areaPrefix.hashCode())
 
 
     init {

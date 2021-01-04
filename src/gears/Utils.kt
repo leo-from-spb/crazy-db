@@ -126,4 +126,11 @@ fun<T> Array<T>.parenthesized(transform: (T) -> CharSequence): String = joinToSt
 fun<T> Collection<T>.parenthesized(transform: (T) -> CharSequence): String = joinToString(prefix = "(", postfix = ")", transform = transform)
 
 
+fun Random.nextInt(min: Int, max: Int): Int {
+    val bound = max - min + 1
+    val x = this.nextInt(bound)
+    return min + x
+}
+
+
 val nop: Nothing? inline get() = null
