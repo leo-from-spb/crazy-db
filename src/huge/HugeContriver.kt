@@ -1,7 +1,8 @@
 package lb.crazydb.huge
 
-import lb.crazydb.*
-import lb.crazydb.TableRole.roleCategory
+import lb.crazydb.Column
+import lb.crazydb.Model
+import lb.crazydb.Table
 import lb.crazydb.TableRole.roleMain
 import lb.crazydb.TriggerEvent.trigOnInsert
 import lb.crazydb.TriggerIncidence.trigBefore
@@ -44,22 +45,21 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
         val mainAbb = mainWord.abb(4)
         if (mainAbb.length < 2 || mainAbb in usedNames) return
 
-        val mainSequence = Sequence(areaPrefix, mainWord, "seq")
+        val mainSequence = model.newSequence(areaPrefix, mainWord, "seq")
         mainSequence.assignFile(areaPrefix, fileNr)
         mainSequence.startWith = portionIndex.toLong()
-        model.sequences += mainSequence
         usedNames += mainSequence.name
 
         val inheritance = rnd.nextBoolean()
         val inheritedTableNumber = if (inheritance) 2 + rnd.nextInt(6) else 0
 
-        val mainTable = Table(roleMain, areaPrefix, mainWord)
+        val mainTable = model.newTable(roleMain, areaPrefix, mainWord)
         mainTable.assignFile(areaPrefix, fileNr)
         mainTable.associatedSequence = mainSequence
 
         val exceptColumnNames = newNameSet(mainAbb)
 
-        val keyColumn = TableColumn(mainTable, "id").apply {
+        val keyColumn = mainTable.newColumn("id").apply {
             mandatory = true
             primary = true
             setDataTypeAndDefault(guessPrimaryDataType())
@@ -73,7 +73,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
                 3    -> "scope"
                 else -> "code"
             }
-            TableColumn(mainTable, name).apply {
+            mainTable.newColumn(name).apply {
                 dataType = when (rnd.nextInt(3)) {
                     1    -> "char(1)"
                     2    -> "char(2)"
@@ -84,7 +84,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             exceptColumnNames += name
         }
 
-        val keyCheck = Check(mainTable, areaPrefix, mainWord, keyColumn.name, "ch").apply {
+        val keyCheck = mainTable.newCheck(areaPrefix, mainWord, keyColumn.name, "ch").apply {
             predicate = keyColumn.name + " > 0"
         }
 
@@ -93,7 +93,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             else 3 + rnd.nextInt(30)
         populateTableWithColumns(mainTable, columnsNumber, exceptColumnNames)
 
-        val trigger = Trigger(mainTable, *(mainTable.nameWords + "id" + "trg")).apply {
+        val trigger = mainTable.newTrigger(*(mainTable.nameWords + "id" + "trg")).apply {
             incidence = trigBefore
             event = trigOnInsert
             forEachRow = true
@@ -104,9 +104,6 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
                    """.trimMargin()
         }
 
-        model.tables += mainTable
-        model.order += mainTable
-
         usedNames += mainWord
         usedNames += mainAbb
         usedNames += keyCheck.name
@@ -114,21 +111,10 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
 
         for (k in 1..inheritedTableNumber) {
             val adjective = dict.guessAdjective(3, usedNames, exceptColumnNames)
-            val inhTable = Table(roleCategory, areaPrefix, adjective, mainWord)
-            inhTable.assignFile(areaPrefix, fileNr)
+            val inhTable = mainTable.newInheritedTable(adjective, null)
             inhTable.adjective = adjective
-            val catKeyColumn = keyColumn.copyToTable(inhTable).apply { mandatory = true; primary = true }
-            val reference = Reference(inhTable, mainTable, *(inhTable.nameWords + "fk"))
-            reference.domesticColumns = arrayOf(catKeyColumn)
-            reference.foreignColumns = arrayOf(keyColumn)
-            reference.cascade = true
-            inhTable.references += reference
             populateTableWithColumns(inhTable, 1 + rnd.nextInt(26), exceptColumnNames)
-            model.tables += inhTable
-            model.order += inhTable
             usedNames += inhTable.name
-            usedNames += reference.name
-            mainTable.inheritedTables += inhTable
         }
 
         if (inheritance) inventViewsForInheritance(mainTable)
@@ -140,7 +126,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
         for (k in 1..columnsNumber) {
             val cName = dict.guessNoun(5, exceptColumnNames, excludedMinorWords)
             val dt = guessSimpleDataType()
-            val column = TableColumn(table, cName).apply {
+            val column = table.newColumn(cName).apply {
                 setDataTypeAndDefault(dt)
                 mandatory = "default" in dataType || rnd.nextBoolean() && rnd.nextBoolean()
             }
@@ -164,7 +150,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
                         else         -> null
                     }
                 if (r != null)
-                    Check(table, *(table.nameWords + cName + "ch")).apply {
+                    table.newCheck(*(table.nameWords + cName + "ch")).apply {
                         predicate = "$cName between ${r.first} and ${r.last}"
                     }
             }
@@ -173,7 +159,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             val indexNameWords =
                 if (indexColumns.size == 1) table.nameWords + indexColumns.first().name + "i"
                 else table.nameWords + "x" + "i"
-            Index(table, *indexNameWords).apply {
+            table.newIndex(*indexNameWords).apply {
                 unique = rnd.nextBoolean() && rnd.nextBoolean()
                 columns = indexColumns
             }
@@ -186,23 +172,21 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
         val dataColumns = table.columns
             .filter { it.dataType.startsWith("number(") && it.dataType != "number(1)" && !it.name.endsWith("id") }
         if (discriminantColumn != null && dataColumns.isNotEmpty()) {
-            val view = View(*(table.nameWords + "stats"))
+            val view = model.newView(*(table.nameWords + "stats"))
             view.baseTables += table
             view.assignFileFrom(table)
             val keyColumn = discriminantColumn.copyToView(view)
             for (column in dataColumns) {
                 val s = column.name
-                ViewColumn(view, "min($s) as ${s}_min", *(column.nameWords + "min"))
-                ViewColumn(view, "avg($s) as ${s}_avg", *(column.nameWords + "avg"))
-                ViewColumn(view, "max($s) as ${s}_max", *(column.nameWords + "max"))
+                view.newColumn("min($s) as ${s}_min", *(column.nameWords + "min"))
+                view.newColumn("avg($s) as ${s}_avg", *(column.nameWords + "avg"))
+                view.newColumn("max($s) as ${s}_max", *(column.nameWords + "max"))
             }
             view.clauseFrom = table.name
             view.clauseGroup = keyColumn.name
             if (!discriminantColumn.mandatory) view.clauseWhere = "${discriminantColumn.name} is not null"
-            model.views += view
             usedNames += view.name
             table.associatedViews += view
-            model.order += view
         }
 
         // Empties
@@ -211,7 +195,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             val partial = rnd.nextBoolean()
             val suffix = if (partial) "partial_empty" else "whole_empty"
             val joinOperator = if (partial) "or" else "and"
-            val view = View(*(table.nameWords + suffix))
+            val view = model.newView(*(table.nameWords + suffix))
             view.baseTables += table
             view.assignFileFrom(table)
             for (c in table.columns.filter { it.mandatory }) {
@@ -220,10 +204,8 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             view.clauseFrom = table.name
             view.clauseWhere = nullableColumns.joinToString(separator = "\n$joinOperator ") { "${it.name} is null" }
             if (partial) view.withCheckOption = true else view.withReadOnly = true
-            model.views += view
             usedNames += view.name
             table.associatedViews += view
-            model.order += view
         }
     }
 
@@ -231,7 +213,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
     private fun inventViewsForInheritance(mainTable: Table) {
         // Whole
         for (table in mainTable.inheritedTables) {
-            val view = View(*(table.nameWords + "whole"))
+            val view = model.newView(*(table.nameWords + "whole"))
             view.baseTables += mainTable
             view.baseTables += table
             view.assignFileFrom(table)
@@ -245,10 +227,8 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             }
             view.clauseFrom = mainTable.name + " natural join " + table.name
             view.withCheckOption = true
-            model.views += view
             usedNames += view.name
             table.associatedViews += view
-            model.order += view
         }
 
         // Coupled views
@@ -257,7 +237,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             for (tab1 in inhTables) for (tab2 in inhTables) {
                 if (tab1 === tab2) continue
                 if (!rnd.nextBoolean()) continue
-                val view = View(areaPrefix, tab1.adjective!!, tab2.adjective!!, mainTable.name)
+                val view = model.newView(areaPrefix, tab1.adjective!!, tab2.adjective!!, mainTable.name)
                 view.baseTables += mainTable
                 view.baseTables += tab1
                 view.baseTables += tab2
@@ -271,9 +251,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
                                      |left join ${tab2.name} on ${mainTable.name}.id = ${tab2.name}.id
                                   """.trimMargin()
                 view.withReadOnly = true
-                model.views += view
                 usedNames += view.name
-                model.order += view
             }
         }
     }
