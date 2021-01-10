@@ -6,6 +6,8 @@ import java.util.*
 import kotlin.system.exitProcess
 
 
+typealias Couple<T> = Pair<T, T>
+
 
 fun emptyNameSet(): MutableSet<String> = TreeSet(String.CASE_INSENSITIVE_ORDER)
 
@@ -48,6 +50,8 @@ fun StringBuilder.phrase(vararg parts: CharSequence?): StringBuilder {
 
 fun StringBuilder.comma(): StringBuilder = append(',')
 fun StringBuilder.space(): StringBuilder = append(' ')
+fun StringBuilder.semicolon(): StringBuilder = append(';')
+fun StringBuilder.semicolonEoln(): StringBuilder = semicolon().eoln()
 fun StringBuilder.tab():   StringBuilder = append('\t')
 fun StringBuilder.eoln():  StringBuilder = append('\n')
 
@@ -107,6 +111,14 @@ infix fun CharSequence.shiftTextWith(prefix: Char): CharSequence =
         else -> prefix + this.replace(eolnPattern, "\n$prefix")
     }
 
+infix fun CharSequence.shiftTextWith(prefix: String): CharSequence =
+    when {
+        this.isEmpty() -> this
+        '\n' !in this -> this
+        this.last() == '\n' -> prefix + this.subSequence(0, length-1).replace(eolnPattern, "\n$prefix") + ' '
+        else -> prefix + this.replace(eolnPattern, "\n$prefix")
+    }
+
 infix fun CharSequence.shiftTextBodyWith(prefix: String): CharSequence =
     when {
         this.isEmpty() -> this
@@ -117,6 +129,12 @@ infix fun CharSequence.shiftTextBodyWith(prefix: String): CharSequence =
 
 
 private val eolnPattern = Regex("""\n""")
+
+
+fun formalType(type: String): String {
+    val p1 = type.indexOf('(')
+    return if (p1 > 0) type.substring(0, p1) else type
+}
 
 
 fun Array<String>.parenthesized(): String = joinToString(prefix = "(", postfix = ")")

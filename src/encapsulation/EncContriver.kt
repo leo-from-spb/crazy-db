@@ -1,15 +1,13 @@
 package lb.crazydb.encapsulation
 
-import lb.crazydb.Model
-import lb.crazydb.ModelFileContext
-import lb.crazydb.NameSpec
-import lb.crazydb.TableColumn
+import lb.crazydb.*
+import lb.crazydb.Direction.dir_In
 import lb.crazydb.TableRole.roleAlone
+import lb.crazydb.gears.*
 import lb.crazydb.gears.Dictionary
-import lb.crazydb.gears.ReservedWords
-import lb.crazydb.gears.nextInt
 import java.util.*
 import kotlin.collections.HashSet
+
 
 class EncContriver (val model: Model, val dict: Dictionary, val areaPrefix: String) {
 
@@ -51,7 +49,7 @@ class EncContriver (val model: Model, val dict: Dictionary, val areaPrefix: Stri
             table.newColumn(NameSpec(name, spec))
         }
 
-        // TODO
+        inventPackage(ctx, table, keyColumn, dataColumns)
     }
 
 
@@ -76,6 +74,59 @@ class EncContriver (val model: Model, val dict: Dictionary, val areaPrefix: Stri
             6 -> "varchar(${rnd.nextInt(1,16)*5})"
             else -> throw RuntimeException("Impossible fork: $x")
         }
+    }
+
+
+    private fun inventPackage(ctx: ModelFileContext, table: Table, keyColumn: TableColumn, dataColumns: Array<TableColumn>) {
+        val pack = ctx.newPackage(*(table.nameWords + "man"))
+        val tableName = table.name
+        val keyColumnName = keyColumn.name
+
+        // insert
+        val instVerbs: Couple<String> = when (rnd.nextInt(4)) {
+            0 -> "new" to "delete"
+            1 -> "add" to "remove"
+            2 -> "register" to "deregister"
+            3 -> "create" to "delete"
+            else -> "xxx" to "yyy"
+        }
+        val p1 = pack.newRoutine(arrayOf(instVerbs.first) + table.nameWords)
+        for (column in table.columns) {
+            val arg = Argument(column.name + "_", dir_In, formalType(column.dataType))
+            p1.arguments += arg
+        }
+        p1.bodyText = """|insert 
+                         |¬into $tableName ($keyColumnName, ${dataColumns.joinToString{it.name}})
+                         |¬values (${keyColumnName}_, ${dataColumns.joinToString{it.name+'_'}});
+                      """.trimMargin().tabs()
+
+        // update
+        val updateVerb: String = when (rnd.nextInt(3)) {
+            0 -> "update"
+            1 -> "change"
+            2 -> "modify"
+            else -> "zzz"
+        }
+        for (column in dataColumns) {
+            val p = pack.newRoutine(arrayOf(updateVerb) + column.nameWords)
+            val keyArg = Argument(keyColumnName + "_", dir_In, formalType(keyColumn.dataType))
+            p.arguments += keyArg
+            val columnName = column.name
+            val arg = Argument(columnName + "_", dir_In, formalType(column.dataType))
+            p.arguments += arg
+            p.bodyText = """|update $tableName
+                            |¬set $columnName = ${columnName}_ 
+                            |¬where $keyColumnName = ${keyColumnName}_;
+                         """.trimMargin().tabs()
+        }
+
+        // delete
+        val p9 = pack.newRoutine(arrayOf(instVerbs.second) + table.nameWords)
+        val arg9 = Argument(keyColumn.name + "_", dir_In, formalType(keyColumn.dataType))
+        p9.arguments += arg9
+        p9.bodyText = """|delete $tableName
+                         |¬where $keyColumnName = ${keyColumnName}_;
+                      """.trimMargin().tabs()
     }
 
 }

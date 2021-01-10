@@ -15,6 +15,7 @@ class Model {
     val sequences = ArrayList<Sequence>()
     val tables    = ArrayList<Table>()
     val views     = ArrayList<View>()
+    val packages  = ArrayList<Package>()
 
     val usedNames: MutableSet<String> = emptyNameSet()
 
@@ -45,6 +46,12 @@ class Model {
         return view
     }
 
+    fun newPackage(areaPrefix: String?, fileNr: Int, vararg nameWords: String): Package {
+        val pack = Package(this, areaPrefix, fileNr, nameWords.fix)
+        this.packages += pack
+        this.order += pack
+        return pack
+    }
 }
 
 
@@ -60,6 +67,9 @@ class ModelFileContext (val model: Model, val areaPrefix: String?, val fileNr: I
     fun newView(vararg nameWords: String): View =
         model.newView(areaPrefix, fileNr, *nameWords)
 
+    fun newPackage(vararg nameWords: String): Package =
+        model.newPackage(areaPrefix, fileNr, *nameWords)
+    
 }
 
 
@@ -280,6 +290,15 @@ class Table (model: Model,
 
         return inhTable
     }
+
+    fun getPrimaryColumns(): Array<TableColumn> =
+        columns.filter(TableColumn::primary).toTypedArray()
+
+    fun getBodyColumns(): Array<TableColumn> =
+        columns.filter(TableColumn::nonPrimary).toTypedArray()
+
+
+
 }
 
 
@@ -323,6 +342,8 @@ sealed class Column (host: MajorObject, nameWords: Array<String>) : InnerObject(
 
     val qName: String
         get() = host.name + '.' + name
+
+    val nonPrimary: Boolean get() = !primary
 
     fun copyToView(view: View, qualified: Boolean = false, prefixWord: String? = null): ViewColumn {
         val newNameWords: Array<String> =
@@ -422,3 +443,39 @@ class Trigger (table: Table, nameWords: Array<String>) : MinorObject(table, name
 
 
 
+class Package (model: Model,
+               areaPrefix: String?,
+               fileNr: Int,
+               nameWords: Array<String>) : MajorObject(model, areaPrefix, fileNr, nameWords) {
+
+    val routines = ArrayList<PackageRoutine>()
+
+
+    fun newRoutine(nameWords: Array<String>): PackageRoutine {
+        val r = PackageRoutine(this, nameWords)
+        routines += r
+        return r
+    }
+
+}
+
+
+class PackageRoutine (pack: Package, nameWords: Array<String>) : InnerObject(pack, nameWords) {
+
+    var bodyText: String = "null;\n"
+    var resultType: String? = null
+
+    val arguments = ArrayList<Argument>()
+
+    val routineWord: String = if (resultType == null) "procedure" else "function"
+
+}
+
+
+data class Argument (val name: String, val dir: Direction, val type: String)
+
+enum class Direction (val word: String) {
+    dir_In ("in"),
+    dir_InOut ("in out"),
+    dir_Out ("out")
+}

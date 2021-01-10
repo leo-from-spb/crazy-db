@@ -60,6 +60,7 @@ class Producer (val model: Model) {
             is Table    -> produceTable(o)
             is View     -> produceView(o)
             is Trigger  -> produceTrigger(o)
+            is Package  -> producePackage(o)
         }
     }
 
@@ -180,6 +181,54 @@ class Producer (val model: Model) {
     }
 
 
+    private fun producePackage(pack: Package) {
+        if (pack in produced) return
+
+        val b = StringBuilder(1024)
+
+        // package specification
+        b.phrase("create package", pack.name, "as").eoln()
+        for (r in pack.routines) {
+            b.tab().phrase(r.routineWord, r.name, makeRoutineSignature(r)).semicolonEoln()
+        }
+        b.phrase("end", pack.name).semicolonEoln()
+        b.append("/\n\n")
+
+        // package body
+        b.phrase("create package body", pack.name, "as").eoln()
+        for (r in pack.routines) {
+            b.tab().append("------\n")
+            b.tab().phrase(r.routineWord, r.name, makeRoutineSignature(r), "is").eoln()
+            b.tab().phrase("begin").eoln()
+            b.append(r.bodyText.shiftTextWith("\t\t")).eolnIfNo()
+            b.tab().phrase("end").semicolonEoln()
+        }
+        b.tab().append("------\n")
+        b.phrase("end", pack.name).semicolonEoln()
+        b.append("/\n\n")
+
+
+        write(b)
+        produced += pack
+    }
+
+
+    private fun makeRoutineSignature(routine: PackageRoutine): String {
+        val arguments = routine.arguments
+        val resultType = routine.resultType
+        val b = StringBuilder()
+        if (arguments.isNotEmpty()) {
+            b.append('(')
+            b.append(arguments.joinToString { a -> "${a.name} ${a.dir.word} ${a.type}" })
+            b.append(')')
+        }
+        if (resultType != null) {
+            b.append("return ").append(resultType)
+        }
+        return b.toString()
+    }
+
+
     private fun produceCombiningFile() {
         inFile("create.sql") {
             produceCombiningFileContent()
@@ -258,6 +307,7 @@ class Producer (val model: Model) {
         var triggers  = 0
         var fks       = 0
         var checks    = 0
+        var packages  = 0
 
         for (p in produced)
             when (p) {
@@ -268,6 +318,7 @@ class Producer (val model: Model) {
                 is Trigger   -> triggers++
                 is Reference -> fks++
                 is Check     -> checks++
+                is Package   -> packages++
             }
 
         val message = """|Generated:
@@ -279,6 +330,7 @@ class Producer (val model: Model) {
                          |~$triggers~triggers
                          |~$fks~foreign keys
                          |~$checks~checks
+                         |~$packages~packages
                       """.trimMargin().replace('~','\t')
         say(message)
     }
