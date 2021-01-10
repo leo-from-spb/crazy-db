@@ -7,7 +7,7 @@ import lb.crazydb.gears.Dictionaries
 class EncMaster (val model: Model) {
 
     val tasks = arrayOf(
-            EncTask("enc1", "huge", 3)
+            EncTask("enc1", "huge", 7, 7, 12)
     )
 
 

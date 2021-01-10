@@ -4,6 +4,6 @@ data class EncTask (
         val areaPrefix: String,
         val dictionaryFolderName: String,
         val filesNumber: Int,
-        val tablesPerFile: Int = 1,
-        val dataColumnsLim: Int = 10
+        val tablesPerFile: Int,
+        val dataColumnsLim: Int
 )
