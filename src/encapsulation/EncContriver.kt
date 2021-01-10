@@ -1,6 +1,9 @@
 package lb.crazydb.encapsulation
 
-import lb.crazydb.*
+import lb.crazydb.Model
+import lb.crazydb.ModelFileContext
+import lb.crazydb.NameSpec
+import lb.crazydb.TableColumn
 import lb.crazydb.TableRole.roleAlone
 import lb.crazydb.gears.Dictionary
 import lb.crazydb.gears.ReservedWords
@@ -26,13 +29,13 @@ class EncContriver (val model: Model, val dict: Dictionary, val areaPrefix: Stri
 
 
     private fun inventTable(fileNr: Int, dataColumnsLim: Int) {
+        val ctx = ModelFileContext(model, areaPrefix, fileNr)
         val mainName = dict.guessNoun(8, usedNouns, ReservedWords.words)
 
-        val sequence = model.newSequence(areaPrefix, mainName, "seq")
-        sequence.assignFile(areaPrefix, fileNr)
+        val sequence = ctx.newSequence(mainName, "seq")
 
-        val table = model.newTable(roleAlone, areaPrefix, mainName)
-        table.assignFile(areaPrefix, fileNr)
+        val table = ctx.newTable(roleAlone, mainName)
+        table.associatedSequence = sequence
         val keyNameSpec = inventKeyColumn()
         val keyColumn = table.newColumn(keyNameSpec)
 

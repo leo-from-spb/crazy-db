@@ -24,22 +24,22 @@ class Model {
     }
 
 
-    fun newSequence(vararg nameWords: String): Sequence {
-        val sequence = Sequence(this, nameWords.fix)
+    fun newSequence(areaPrefix: String?, fileNr: Int, vararg nameWords: String): Sequence {
+        val sequence = Sequence(this, areaPrefix, fileNr, nameWords.fix)
         this.sequences += sequence
         this.order += sequence
         return sequence
     }
 
-    fun newTable(role: TableRole, vararg nameWords: String): Table {
-        val table = Table(this, role, nameWords.fix)
+    fun newTable(areaPrefix: String?, fileNr: Int, role: TableRole, vararg nameWords: String): Table {
+        val table = Table(this, areaPrefix, fileNr, role, nameWords.fix)
         this.tables += table
         this.order += table
         return table
     }
 
-    fun newView(vararg nameWords: String): View {
-        val view = View(this, nameWords.fix)
+    fun newView(areaPrefix: String?, fileNr: Int, vararg nameWords: String): View {
+        val view = View(this, areaPrefix, fileNr, nameWords.fix)
         this.views += view
         this.order += view
         return view
@@ -48,7 +48,23 @@ class Model {
 }
 
 
+
+class ModelFileContext (val model: Model, val areaPrefix: String?, val fileNr: Int) {
+
+    fun newSequence(vararg nameWords: String): Sequence =
+        model.newSequence(areaPrefix, fileNr, *nameWords)
+
+    fun newTable(role: TableRole, vararg nameWords: String): Table =
+        model.newTable(areaPrefix, fileNr, role, *nameWords)
+
+    fun newView(vararg nameWords: String): View =
+        model.newView(areaPrefix, fileNr, *nameWords)
+
+}
+
+
 private val internalIdSequence = AtomicInteger()
+
 
 
 data class NameSpec(val name: String, val spec: String)
@@ -62,13 +78,19 @@ data class NameSpec(val name: String, val spec: String)
  */
 sealed class Entity(nameWords: Array<String>) {
 
+    /**
+     * Words of the name, excluding the subject area prefix.
+     */
     val nameWords: Array<String>
-    val name: String
+
+    /**
+     * Full name (with subject area if one exists).
+     */
+    abstract val name: String
 
     init {
         assert(nameWords.isNotEmpty())
         this.nameWords = nameWords // TODO remove empty parts
-        this.name = nameWords.joinToString(separator = "_")
     }
 
     override fun toString(): String = name + ':' + this.javaClass.simpleName
@@ -81,33 +103,39 @@ sealed class Entity(nameWords: Array<String>) {
  */
 sealed class SchemaObject(nameWords: Array<String>) : Entity(nameWords) {
 
+    abstract val areaPrefix: String?
+
+    override val name: String
+        get() {
+            val nameR = nameWords.joinToString(separator = "_")
+            return if (areaPrefix != null) areaPrefix + '_' + nameR else nameR
+        }
+
 }
+
 
 /**
  * Independent object (which can be created without other objects),
  * i.e. table, view, routine.
  */
-sealed class MajorObject(val model: Model, nameWords: Array<String>) : SchemaObject(nameWords) {
+sealed class MajorObject(val model: Model,
+                         areaPrefix: String?,
+                         fileNr: Int,
+                         nameWords: Array<String>) : SchemaObject(nameWords) {
+
+    override val areaPrefix: String? = areaPrefix?.trim()
+
+    val filePrefix: String = areaPrefix ?: "unsorted"
+    val fileNr = fileNr
 
     val intId = internalIdSequence.incrementAndGet()
 
-    var filePrefix: String = ""
-    var fileNr = 0
 
     val fileName: String
         get() = if (fileNr > 0) filePrefix + '_' + fileNr else filePrefix
 
-    fun assignFile(filePrefix: String, fileNr: Int) {
-        this.filePrefix = filePrefix
-        this.fileNr = fileNr
-    }
-
-    fun assignFileFrom(originalObject: MajorObject) {
-        this.filePrefix = originalObject.filePrefix
-        this.fileNr = originalObject.fileNr
-    }
-
 }
+
 
 /**
  * Minor schema object — a detail of another object but with a name in the schema scope,
@@ -115,13 +143,20 @@ sealed class MajorObject(val model: Model, nameWords: Array<String>) : SchemaObj
  */
 sealed class MinorObject(val host: MajorObject, nameWords: Array<String>) : SchemaObject(nameWords) {
 
+    override val areaPrefix: String?
+        get() = host.areaPrefix
+
 }
+
 
 /**
  * Detail, which name is unique in the host's scope, i.e. column.
  */
 sealed class InnerObject(val host: MajorObject, nameWords: Array<String>) : Entity(nameWords) {
 
+    override val name: String
+        get() = nameWords.joinToString(separator = "_")
+    
 }
 
 
@@ -129,7 +164,10 @@ sealed class InnerObject(val host: MajorObject, nameWords: Array<String>) : Enti
 ////// OBJECTS \\\\\\
 
 
-class Sequence (model: Model, nameWords: Array<String>) : MajorObject(model, nameWords) {
+class Sequence (model: Model,
+                areaPrefix: String?,
+                fileNr: Int,
+                nameWords: Array<String>) : MajorObject(model, areaPrefix, fileNr, nameWords) {
 
     var startWith: Long = 1L
 
@@ -146,7 +184,11 @@ enum class TableRole {
 }
 
 
-class Table (model: Model, val role: TableRole, nameWords: Array<String>) : MajorObject(model, nameWords) {
+class Table (model: Model,
+             areaPrefix: String?,
+             fileNr: Int,
+             val role: TableRole,
+             nameWords: Array<String>) : MajorObject(model, areaPrefix, fileNr, nameWords) {
 
     val columns = ArrayList<TableColumn>()
     val indices = ArrayList<Index>()
@@ -178,43 +220,47 @@ class Table (model: Model, val role: TableRole, nameWords: Array<String>) : Majo
         return column
     }
 
-    fun newIndex(vararg nameWords: String): Index {
-        val index = Index(this, nameWords.fix)
+    fun newIndex(vararg plusNameWords: String): Index {
+        val indexNameWords = this.nameWords + plusNameWords
+        val index = Index(this, indexNameWords)
         indices += index
         return index
     }
 
-    fun newReference(foreignTable: Table, vararg nameWords: String): Reference {
-        val ref = Reference(this, foreignTable, nameWords.fix)
+    fun newReference(foreignTable: Table, vararg plusNameWords: String): Reference {
+        val refNameWords = this.nameWords + plusNameWords
+        val ref = Reference(this, foreignTable, refNameWords)
         references += ref
         return ref
     }
 
-    fun newCheck(vararg nameWords: String): Check {
-        val check = Check(this, nameWords.fix)
+    fun newCheck(vararg plusNameWords: String): Check {
+        val checkNameWords = this.nameWords + plusNameWords
+        val check = Check(this, checkNameWords)
         checks += check
         return check
     }
 
-    fun newTrigger(vararg nameWords: String): Trigger {
-        val trigger = Trigger(this, nameWords.fix)
+    fun newTrigger(vararg plusNameWords: String): Trigger {
+        val triggerNameWords = this.nameWords + plusNameWords
+        val trigger = Trigger(this, triggerNameWords)
         triggers += trigger
         return trigger
     }
 
     fun newInheritedTable(nameInhPrefix: String?, nameInhSuffix: String?): Table {
+        if (nameInhPrefix == null && nameInhSuffix == null) throw IllegalArgumentException("Prefix of suffix must be")
+        
         val inhNameWords = ArrayList<String>()
         inhNameWords.addAll(this.nameWords)
         if (nameInhPrefix != null) {
-            val k = 1 // TODO check for the area prefix
-            inhNameWords.add(k, nameInhPrefix)
+            inhNameWords.add(0, nameInhPrefix)
         }
         if (nameInhSuffix != null) {
             inhNameWords += nameInhSuffix
         }
         val inhTableNameWordsArr = inhNameWords.toTypedArray()
-        val inhTable = model.newTable(TableRole.roleCategory, *inhTableNameWordsArr)
-        inhTable.assignFileFrom(this)
+        val inhTable = model.newTable(this.areaPrefix, this.fileNr, TableRole.roleCategory, *inhTableNameWordsArr)
         this.inheritedTables += inhTable
 
         val basePrimaryColumns: Array<TableColumn> = this.columns.filter(TableColumn::primary).toTypedArray()
@@ -227,7 +273,7 @@ class Table (model: Model, val role: TableRole, nameWords: Array<String>) : Majo
             inhColumn
         }
 
-        val inhReference = inhTable.newReference(this, *(inhTableNameWordsArr + "fk"))
+        val inhReference = inhTable.newReference(this, "fk")
         inhReference.domesticColumns = inhColumns
         inhReference.foreignColumns = basePrimaryColumns
         inhReference.cascade = true
@@ -244,7 +290,11 @@ class Check (val table: Table, nameWords: Array<String>) : MinorObject(table, na
 }
 
 
-class View (model: Model, nameWords: Array<String>) : MajorObject(model, nameWords) {
+class View (model: Model,
+            areaPrefix: String?,
+            fileNr: Int,
+            nameWords: Array<String>) : MajorObject(model, areaPrefix, fileNr, nameWords) {
+
     val columns = ArrayList<ViewColumn>()
     val baseTables = ArrayList<Table>()
 

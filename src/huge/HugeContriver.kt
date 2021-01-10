@@ -2,6 +2,7 @@ package lb.crazydb.huge
 
 import lb.crazydb.Column
 import lb.crazydb.Model
+import lb.crazydb.ModelFileContext
 import lb.crazydb.Table
 import lb.crazydb.TableRole.roleMain
 import lb.crazydb.TriggerEvent.trigOnInsert
@@ -41,20 +42,20 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
     }
 
     private fun inventPortion(fileNr: Int, portionIndex: Int) {
+        val ctx = ModelFileContext(model, areaPrefix, fileNr)
+
         val mainWord = dict.guessNoun(6, usedNames)
         val mainAbb = mainWord.abb(4)
         if (mainAbb.length < 2 || mainAbb in usedNames) return
 
-        val mainSequence = model.newSequence(areaPrefix, mainWord, "seq")
-        mainSequence.assignFile(areaPrefix, fileNr)
+        val mainSequence = ctx.newSequence(mainWord, "seq")
         mainSequence.startWith = portionIndex.toLong()
         usedNames += mainSequence.name
 
         val inheritance = rnd.nextBoolean()
         val inheritedTableNumber = if (inheritance) 2 + rnd.nextInt(6) else 0
 
-        val mainTable = model.newTable(roleMain, areaPrefix, mainWord)
-        mainTable.assignFile(areaPrefix, fileNr)
+        val mainTable = ctx.newTable(roleMain, mainWord)
         mainTable.associatedSequence = mainSequence
 
         val exceptColumnNames = newNameSet(mainAbb)
@@ -84,7 +85,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             exceptColumnNames += name
         }
 
-        val keyCheck = mainTable.newCheck(areaPrefix, mainWord, keyColumn.name, "ch").apply {
+        val keyCheck = mainTable.newCheck(keyColumn.name, "ch").apply {
             predicate = keyColumn.name + " > 0"
         }
 
@@ -93,7 +94,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             else 3 + rnd.nextInt(30)
         populateTableWithColumns(mainTable, columnsNumber, exceptColumnNames)
 
-        val trigger = mainTable.newTrigger(*(mainTable.nameWords + "id" + "trg")).apply {
+        val trigger = mainTable.newTrigger("id", "trg").apply {
             incidence = trigBefore
             event = trigOnInsert
             forEachRow = true
@@ -117,8 +118,8 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             usedNames += inhTable.name
         }
 
-        if (inheritance) inventViewsForInheritance(mainTable)
-        else inventViewsForSingleTable(mainTable)
+        if (inheritance) inventViewsForInheritance(ctx, mainTable)
+        else inventViewsForSingleTable(ctx, mainTable)
     }
 
     private fun populateTableWithColumns(table: Table, columnsNumber: Int, exceptColumnNames: MutableSet<String>) {
@@ -150,31 +151,30 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
                         else         -> null
                     }
                 if (r != null)
-                    table.newCheck(*(table.nameWords + cName + "ch")).apply {
+                    table.newCheck(cName, "ch").apply {
                         predicate = "$cName between ${r.first} and ${r.last}"
                     }
             }
         }
         if (indexColumns != null && indexColumns.isNotEmpty()) {
-            val indexNameWords =
-                if (indexColumns.size == 1) table.nameWords + indexColumns.first().name + "i"
-                else table.nameWords + "x" + "i"
-            table.newIndex(*indexNameWords).apply {
+            val plusNameWords =
+                if (indexColumns.size == 1) arrayOf(indexColumns.first().name, "i")
+                else arrayOf("x", "i")
+            table.newIndex(*plusNameWords).apply {
                 unique = rnd.nextBoolean() && rnd.nextBoolean()
                 columns = indexColumns
             }
         }
     }
 
-    private fun inventViewsForSingleTable(table: Table) {
+    private fun inventViewsForSingleTable(ctx: ModelFileContext, table: Table) {
         // Stats
         val discriminantColumn = table.columns.firstOrNull { it.dataType.startsWith("char") || it.dataType == "number(1)" }
         val dataColumns = table.columns
             .filter { it.dataType.startsWith("number(") && it.dataType != "number(1)" && !it.name.endsWith("id") }
         if (discriminantColumn != null && dataColumns.isNotEmpty()) {
-            val view = model.newView(*(table.nameWords + "stats"))
+            val view = ctx.newView(*(table.nameWords + "stats"))
             view.baseTables += table
-            view.assignFileFrom(table)
             val keyColumn = discriminantColumn.copyToView(view)
             for (column in dataColumns) {
                 val s = column.name
@@ -195,9 +195,8 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             val partial = rnd.nextBoolean()
             val suffix = if (partial) "partial_empty" else "whole_empty"
             val joinOperator = if (partial) "or" else "and"
-            val view = model.newView(*(table.nameWords + suffix))
+            val view = ctx.newView(*(table.nameWords + suffix))
             view.baseTables += table
-            view.assignFileFrom(table)
             for (c in table.columns.filter { it.mandatory }) {
                 c.copyToView(view)
             }
@@ -210,13 +209,12 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
     }
 
 
-    private fun inventViewsForInheritance(mainTable: Table) {
+    private fun inventViewsForInheritance(ctx: ModelFileContext, mainTable: Table) {
         // Whole
         for (table in mainTable.inheritedTables) {
-            val view = model.newView(*(table.nameWords + "whole"))
+            val view = ctx.newView(*(table.nameWords + "whole"))
             view.baseTables += mainTable
             view.baseTables += table
-            view.assignFileFrom(table)
             val alreadyNames = emptyNameSet()
             for (c in mainTable.columns) {
                 c.copyToView(view)
@@ -237,12 +235,11 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             for (tab1 in inhTables) for (tab2 in inhTables) {
                 if (tab1 === tab2) continue
                 if (!rnd.nextBoolean()) continue
-                val view = model.newView(areaPrefix, tab1.adjective!!, tab2.adjective!!, mainTable.name)
+                val view = ctx.newView(tab1.adjective!!, tab2.adjective!!, mainTable.name)
                 view.baseTables += mainTable
                 view.baseTables += tab1
                 view.baseTables += tab2
                 val laterTab = if (tab1.intId < tab2.intId) tab2 else tab1
-                view.assignFileFrom(laterTab)
                 for (c in mainTable.columns) c.copyToView(view, true)
                 for (c in tab1.columns) if (!c.primary) c.copyToView(view, true)
                 for (c in tab2.columns) if (!c.primary) c.copyToView(view, true)
