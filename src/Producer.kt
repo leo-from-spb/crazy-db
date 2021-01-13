@@ -61,6 +61,7 @@ class Producer (val model: Model) {
             is View     -> produceView(o)
             is Trigger  -> produceTrigger(o)
             is Package  -> producePackage(o)
+            is Synonym  -> produceSynonym(o)
         }
     }
 
@@ -229,6 +230,21 @@ class Producer (val model: Model) {
     }
 
 
+    private fun produceSynonym(synonym: Synonym) {
+        if (synonym in produced) return
+
+        val target = synonym.target ?: return
+
+        val b = StringBuilder()
+
+        b.phrase("create synonym", synonym.name, "for", target.name).eoln()
+        b.append("/\n\n")
+
+        write(b)
+        produced += synonym
+    }
+    
+
     private fun produceCombiningFile() {
         inFile("create.sql") {
             produceCombiningFileContent()
@@ -308,6 +324,7 @@ class Producer (val model: Model) {
         var fks       = 0
         var checks    = 0
         var packages  = 0
+        var synonyms  = 0
 
         for (p in produced)
             when (p) {
@@ -319,6 +336,7 @@ class Producer (val model: Model) {
                 is Reference -> fks++
                 is Check     -> checks++
                 is Package   -> packages++
+                is Synonym   -> synonyms++
             }
 
         val message = """|Generated:
@@ -331,6 +349,7 @@ class Producer (val model: Model) {
                          |~$fks~foreign keys
                          |~$checks~checks
                          |~$packages~packages
+                         |~$synonyms~synonyms
                       """.trimMargin().replace('~','\t')
         say(message)
     }

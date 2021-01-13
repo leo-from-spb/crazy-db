@@ -15,7 +15,7 @@ class HugeMaster (val model: Model) {
     fun generateOneArea(model: Model, task: HugeTask) {
         val dict = Dictionaries.obtain(task.dictionaryFolderName)
         val contriver = HugeContriver(model, dict, task.areaPrefix)
-        contriver.inventCrazySchema(task.filesNumber, task.portionsNumber)
+        contriver.inventCrazySchema(task.filesNumber, task.portionsNumber, task.withSynonyms)
     }
 
 }

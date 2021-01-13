@@ -16,6 +16,7 @@ class Model {
     val tables    = ArrayList<Table>()
     val views     = ArrayList<View>()
     val packages  = ArrayList<Package>()
+    val synonyms  = ArrayList<Synonym>()
 
     val usedNames: MutableSet<String> = emptyNameSet()
 
@@ -52,6 +53,15 @@ class Model {
         this.order += pack
         return pack
     }
+
+    fun newSynonym(areaPrefix: String?, fileNr: Int, targetObject: MajorObject?, nameWords: Array<String>): Synonym {
+        val synonym = Synonym(this, areaPrefix, fileNr, nameWords.fix)
+        if (targetObject != null) synonym.target = targetObject
+        this.synonyms += synonym
+        this.order += synonym
+        return synonym
+    }
+
 }
 
 
@@ -70,6 +80,9 @@ class ModelFileContext (val model: Model, val areaPrefix: String?, val fileNr: I
     fun newPackage(vararg nameWords: String): Package =
         model.newPackage(areaPrefix, fileNr, *nameWords)
     
+    fun newSynonym(targetObject: MajorObject?, vararg nameWords: String): Synonym =
+        model.newSynonym(areaPrefix, fileNr, targetObject, nameWords.fix)
+
 }
 
 
@@ -479,3 +492,15 @@ enum class Direction (val word: String) {
     dir_InOut ("in out"),
     dir_Out ("out")
 }
+
+
+
+class Synonym (model: Model,
+               areaPrefix: String?,
+               fileNr: Int,
+               nameWords: Array<String>) : MajorObject(model, areaPrefix, fileNr, nameWords) {
+
+    var target: MajorObject? = null
+
+}
+

@@ -8,7 +8,8 @@ data class HugeTask(
         override val areaPrefix: String,
         override val dictionaryFolderName: String,
         override val filesNumber: Int = 1,
-        val portionsNumber: Int = 10
+        val portionsNumber: Int = 10,
+        val withSynonyms: Boolean = false
 
 ) : GenerationTask
 

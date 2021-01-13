@@ -1,9 +1,6 @@
 package lb.crazydb.huge
 
-import lb.crazydb.Column
-import lb.crazydb.Model
-import lb.crazydb.ModelFileContext
-import lb.crazydb.Table
+import lb.crazydb.*
 import lb.crazydb.TableRole.roleMain
 import lb.crazydb.TriggerEvent.trigOnInsert
 import lb.crazydb.TriggerIncidence.trigBefore
@@ -24,6 +21,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
 
     private val rnd = Random(System.nanoTime() * 17L + areaPrefix.hashCode())
 
+    private var synonymNr = 0
 
     init {
         excludedMinorWords = emptyNameSet()
@@ -33,15 +31,17 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
         usedNames += specialWords
     }
 
-    fun inventCrazySchema(numberOfFiles: Int, numberOfPortionsPerFile: Int) {
-        for (fileNr in 1 .. numberOfFiles) inventFile(fileNr, numberOfPortionsPerFile)
+    fun inventCrazySchema(numberOfFiles: Int, numberOfPortionsPerFile: Int, withSynonyms: Boolean) {
+        for (fileNr in 1 .. numberOfFiles) inventFile(fileNr, numberOfPortionsPerFile, withSynonyms)
     }
 
-    fun inventFile(fileNr: Int, numberOfPortions: Int) {
-        for (i in 1 .. numberOfPortions) inventPortion(fileNr, i)
+    fun inventFile(fileNr: Int, numberOfPortions: Int, withSynonyms: Boolean) {
+        for (i in 1 .. numberOfPortions) inventPortion(fileNr, i, withSynonyms)
     }
 
-    private fun inventPortion(fileNr: Int, portionIndex: Int) {
+    private fun inventPortion(fileNr: Int, portionIndex: Int, withSynonyms: Boolean) {
+        synonymNr = 0
+
         val ctx = ModelFileContext(model, areaPrefix, fileNr)
 
         val mainWord = dict.guessNoun(6, usedNames)
@@ -118,8 +118,10 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             usedNames += inhTable.name
         }
 
-        if (inheritance) inventViewsForInheritance(ctx, mainTable)
-        else inventViewsForSingleTable(ctx, mainTable)
+        if (withSynonyms && rnd.nextInt(100) >= 40) makeSimpleSynonymFor(ctx, mainTable)
+
+        if (inheritance) inventViewsForInheritance(ctx, mainTable, withSynonyms)
+        else inventViewsForSingleTable(ctx, mainTable, withSynonyms)
     }
 
     private fun populateTableWithColumns(table: Table, columnsNumber: Int, exceptColumnNames: MutableSet<String>) {
@@ -167,7 +169,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
         }
     }
 
-    private fun inventViewsForSingleTable(ctx: ModelFileContext, table: Table) {
+    private fun inventViewsForSingleTable(ctx: ModelFileContext, table: Table, withSynonyms: Boolean) {
         // Stats
         val discriminantColumn = table.columns.firstOrNull { it.dataType.startsWith("char") || it.dataType == "number(1)" }
         val dataColumns = table.columns
@@ -187,7 +189,8 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             if (!discriminantColumn.mandatory) view.clauseWhere = "${discriminantColumn.name} is not null"
             usedNames += view.name
             table.associatedViews += view
-        }
+            if (withSynonyms && rnd.nextInt(100) >= 25) makeSimpleSynonymFor(ctx, view, table)
+    }
 
         // Empties
         val nullableColumns = table.columns.filter { !it.mandatory }
@@ -205,11 +208,12 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             if (partial) view.withCheckOption = true else view.withReadOnly = true
             usedNames += view.name
             table.associatedViews += view
+            if (withSynonyms && rnd.nextInt(100) >= 25) makeSimpleSynonymFor(ctx, view, table)
         }
     }
 
 
-    private fun inventViewsForInheritance(ctx: ModelFileContext, mainTable: Table) {
+    private fun inventViewsForInheritance(ctx: ModelFileContext, mainTable: Table, withSynonyms: Boolean) {
         // Whole
         for (table in mainTable.inheritedTables) {
             val view = ctx.newView(*(table.nameWords + "whole"))
@@ -227,6 +231,7 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
             view.withCheckOption = true
             usedNames += view.name
             table.associatedViews += view
+            if (withSynonyms && rnd.nextInt(100) >= 25) makeSimpleSynonymFor(ctx, view, mainTable)
         }
 
         // Coupled views
@@ -249,8 +254,17 @@ class HugeContriver(val model: Model, val dict: Dictionary, val areaPrefix: Stri
                                   """.trimMargin()
                 view.withReadOnly = true
                 usedNames += view.name
+                if (withSynonyms && rnd.nextInt(100) >= 25) makeSimpleSynonymFor(ctx, view, mainTable)
             }
         }
+    }
+
+
+    private fun makeSimpleSynonymFor(ctx: ModelFileContext, target: MajorObject, nameFromObject: Entity? = null) {
+        val nameDonor = nameFromObject ?: target
+        val suffix: String = (++synonymNr).toString()
+        val words = nameDonor.nameWords + suffix
+        ctx.newSynonym(target, *words)
     }
 
 

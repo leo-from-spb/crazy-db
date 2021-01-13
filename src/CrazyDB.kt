@@ -17,7 +17,7 @@ object CrazyDB {
     val hugeTasks = arrayOf(
             HugeTask("hg1", "huge", 1, 10),
             HugeTask("hg2", "huge", 2, 15),
-            HugeTask("hg3", "huge", 3, 25)
+            HugeTask("hg3", "huge", 3, 25, true)
     )
 
 
