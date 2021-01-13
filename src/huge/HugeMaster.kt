@@ -6,14 +6,7 @@ import lb.crazydb.gears.Dictionaries
 
 class HugeMaster (val model: Model) {
 
-    val tasks = arrayOf(
-            HugeTask("hg1", "huge", 1, 10),
-            HugeTask("hg2", "huge", 2, 15),
-            HugeTask("hg3", "huge", 3, 25)
-    )
-
-
-    fun generate() {
+    fun generate(tasks: Array<HugeTask>) {
         println("Generating 'Huge'…")
         for (task in tasks) generateOneArea(model, task)
     }

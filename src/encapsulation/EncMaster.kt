@@ -6,12 +6,8 @@ import lb.crazydb.gears.Dictionaries
 
 class EncMaster (val model: Model) {
 
-    val tasks = arrayOf(
-            EncTask("enc1", "huge", 7, 7, 12)
-    )
 
-
-    fun generate() {
+    fun generate(tasks: Array<EncTask>) {
         println("Generating 'Encapsulation'…")
 
         for (task in tasks) generateOneArea(model, task)
