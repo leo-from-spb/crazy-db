@@ -320,13 +320,18 @@ class Producer (val model: Model) {
         var tables    = 0
         var views     = 0
         var indices   = 0
+        var keys      = 0
         var triggers  = 0
         var fks       = 0
         var checks    = 0
         var packages  = 0
+        var routines  = 0
+        var columns   = 0
+        var arguments = 0
         var synonyms  = 0
 
-        for (p in produced)
+        for (p in produced) {
+            // schema objects
             when (p) {
                 is Sequence  -> sequences++
                 is Table     -> tables++
@@ -338,19 +343,39 @@ class Producer (val model: Model) {
                 is Package   -> packages++
                 is Synonym   -> synonyms++
             }
+            // inner objects
+            when (p) {
+                is Table -> {
+                    columns += p.columns.size
+                    if (p.primaryKeySize > 0) keys++
+                }
+                is View -> {
+                    columns += p.columns.size
+                }
+                is Package -> {
+                    routines += p.routines.size
+                    for (r in p.routines) arguments += r.arguments.size
+                }
+                else -> {}
+            }
+        }
 
         val message = """|Generated:
-                         |~${producedFiles.size}~files
-                         |~$sequences~sequences
-                         |~$tables~tables
-                         |~$views~views
-                         |~$indices~indices
-                         |~$triggers~triggers
-                         |~$fks~foreign keys
-                         |~$checks~checks
-                         |~$packages~packages
-                         |~$synonyms~synonyms
-                      """.trimMargin().replace('~','\t')
+                         |¬${producedFiles.size}¬files
+                         |¬$sequences¬sequences
+                         |¬$tables¬tables
+                         |¬$views¬views
+                         |¬$columns¬columns
+                         |¬$indices¬indices
+                         |¬$keys¬primary and alternative keys
+                         |¬$fks¬foreign keys
+                         |¬$triggers¬triggers
+                         |¬$checks¬checks
+                         |¬$packages¬packages
+                         |¬$routines¬routines
+                         |¬$arguments¬arguments
+                         |¬$synonyms¬synonyms
+                      """.trimMargin().tabs()
         say(message)
     }
 
