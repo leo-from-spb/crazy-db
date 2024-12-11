@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="CrazyDedal" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="lb.crazy.dedal.Dedal" />
+    <module name="CrazyDedal" />
+    <shortenClasspath name="NONE" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
