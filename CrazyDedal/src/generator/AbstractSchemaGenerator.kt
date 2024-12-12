@@ -10,7 +10,7 @@ import kotlin.random.Random
  */
 abstract class AbstractSchemaGenerator (val model: Model, schemaName: String) {
 
-    val schema: Schema = model.schemas.getOrCreate(schemaName) { Schema(schemaName) }
+    val schema: Schema = model.obtainSchema(schemaName)
 
 
     abstract fun generate()

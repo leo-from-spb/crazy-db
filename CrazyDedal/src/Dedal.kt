@@ -36,6 +36,7 @@ class Dedal {
 
 
     private fun collectAndPrintModelStatistics(model: Model) {
+        val nAreas = model.schemas.sumOf { it.areas.size }
         val nTables = model.schemas.sumOf { it.tables.size }
         val nColumns = model.schemas.sumOf { it.tables.sumOf { it.columns.size } }
         val nIndices = model.schemas.sumOf { it.tables.sumOf { it.indices.size } }
@@ -43,6 +44,7 @@ class Dedal {
         val message = """|Model is generated.
                          |Statistics: 
                          |>schemas: ${model.schemas.size}
+                         |>areas  : $nAreas
                          |>tables : $nTables
                          |>columns: $nColumns
                          |>indices: $nIndices
