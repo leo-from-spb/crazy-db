@@ -2,7 +2,6 @@ package lb.crazy.dedal.generator
 
 import lb.crazy.model.Model
 import lb.crazy.model.Schema
-import lb.crazy.model.getOrCreate
 import kotlin.random.Random
 
 /**

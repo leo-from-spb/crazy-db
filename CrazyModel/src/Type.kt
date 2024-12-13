@@ -59,7 +59,17 @@ class NumType : Type {
         this.positiveOnly = range.first > 0
     }
 
-    override fun toString() = "Num" + (range?.toString()?.wrap('(', ')') ?: "")
+    override fun toString() =
+        buildString {
+            append("Num")
+            when {
+               digits != 0 -> append('(').append(digits).append(')')
+               sizeModifier == sizeShort -> append("(short)")
+               sizeModifier == sizeNorm -> append("(norm)")
+               sizeModifier == sizeLong -> append("(long)")
+            }
+            if (range != null) append('[').append(range).append(']')
+        }
 
 }
 

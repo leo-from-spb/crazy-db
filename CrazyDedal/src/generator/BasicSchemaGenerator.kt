@@ -50,7 +50,7 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
         }
 
         private fun makeIdColumn(table: Table): Column {
-            val type = NumType(rnd.nextBoolean().choose(sizeNorm, sizeLong), true)
+            val type = NumType((rnd.nextBoolean() && rnd.nextBoolean()).choose(sizeLong, sizeNorm), true)
             val column = table.newColumn("Id", type, mandatory = true)
             table.newIndex(null, "Id", primary = true)
             return column
@@ -59,25 +59,22 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
         private fun makeManyToManyTable(table1: Table, table2: Table) {
             assert(table1 !== table2)
             assert(table1.wordRoot !== table2.wordRoot)
+            val refKey1 = table1.primaryKey ?: return
+            val refKey2 = table2.primaryKey ?: return
+
             val combinedRoot = table1.wordRoot + '_' + table2.wordRoot
             val table = area.newTable(combinedRoot, TableRole.ManyToMany)
-            val indexColumnNames = ArrayList<String>(2)
-            for (c1 in table1.primaryColumns) {
-                val name = table1.wordRoot + '_' + c1.name
-                table.newColumn(name, c1.type, mandatory = true)
-                indexColumnNames += name
-            }
-            for (c2 in table2.primaryColumns) {
-                val name = table2.wordRoot + '_' + c2.name
-                table.newColumn(name, c2.type, mandatory = true)
-                indexColumnNames += name
-            }
-            if (rnd.nextBoolean()) {
+            val fk1 = table.newForeignKeyAndColumns(refKey1, table1.wordRoot, mandatory = true)
+            val fk2 = table.newForeignKeyAndColumns(refKey2, table2.wordRoot, mandatory = true)
+
+            val pkColumnNames = fk1.domColumns.toTypedArray() + fk2.domColumns.toTypedArray()
+            val withExtraColumns = rnd.nextInt(3) == 0
+            table.newIndex(null, *pkColumnNames, unique = true, primary = withExtraColumns)
+
+            if (withExtraColumns) {
                 makeSimpleColumn(table)
-                table.newIndex(null, *indexColumnNames.toTypedArray(), primary = true)
-            }
-            else {
-                table.newIndex(null, *indexColumnNames.toTypedArray(), unique = true)
+                if (rnd.nextBoolean())
+                    makeSimpleColumn(table)
             }
         }
 

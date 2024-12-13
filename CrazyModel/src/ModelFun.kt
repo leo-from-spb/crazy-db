@@ -3,13 +3,5 @@
 package lb.crazy.model
 
 
-inline fun <reified E: NamedEntity> MutableList<E>.getOrCreate(name: String, creating: () -> E): E {
-    var entity = this.find { it.name == name }
-    if (entity == null) {
-        entity = creating()
-        this.add(entity)
-    }
-    return entity
-}
-
-
+fun <E: NamedEntity> List<E>.byNames(vararg names: String): List<E> =
+    names.mapNotNull { this.find { e -> e.name == it } }

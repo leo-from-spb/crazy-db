@@ -40,14 +40,16 @@ class Dedal {
         val nTables = model.schemas.sumOf { it.tables.size }
         val nColumns = model.schemas.sumOf { it.tables.sumOf { it.columns.size } }
         val nIndices = model.schemas.sumOf { it.tables.sumOf { it.indices.size } }
+        val nForeignKeys = model.schemas.sumOf { it.tables.sumOf { it.foreignKeys.size } }
 
         val message = """|Model is generated.
                          |Statistics: 
-                         |>schemas: ${model.schemas.size}
-                         |>areas  : $nAreas
-                         |>tables : $nTables
-                         |>columns: $nColumns
-                         |>indices: $nIndices
+                         |>schemas      : ${model.schemas.size}
+                         |>subject areas: $nAreas
+                         |>tables       : $nTables
+                         |>columns      : $nColumns
+                         |>indices      : $nIndices
+                         |>foreign keys : $nForeignKeys
                       """.trimMargin().replace('>','\t')
         say(message)
     }

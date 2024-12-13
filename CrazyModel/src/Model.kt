@@ -1,10 +1,6 @@
 package lb.crazy.model
 
 import java.util.*
-import kotlin.collections.ArrayList
-import kotlin.collections.HashMap
-import kotlin.collections.HashSet
-import kotlin.collections.LinkedHashMap
 
 
 class Model {
@@ -148,8 +144,12 @@ class Table : MajorObject {
 
     val columns = ArrayList<Column>()
     val indices = ArrayList<Index>()
+    val foreignKeys = ArrayList<ForeignKey>()
 
     val columnsByName = HashMap<String, Column>()
+
+    var primaryKey: Index? = null
+        private set
 
     private var indexCounter = 0
 
@@ -157,7 +157,8 @@ class Table : MajorObject {
         this.role = role
     }
 
-    fun newColumn(name: String, primaRef: Column, mandatory: Boolean = false): Column {
+    fun newColumn(columnPrefix: String?, primaRef: Column, mandatory: Boolean = false): Column {
+        val name = primaRef.name?.withPrefix(columnPrefix, '_') ?: "column_${columns.size + 1}"
         assert (name !in columnsByName.keys)
         val column = Column(this, name, primaRef, mandatory)
         registerColumn(column)
@@ -178,7 +179,12 @@ class Table : MajorObject {
     }
 
     fun newIndex(name: String?, vararg columnNames: String, unique: Boolean = false, primary: Boolean = false): Index {
-        if (primary) assert(indices.none { it.primary }) { "The primary key already exists in this table" }
+        val indexColumns = this.columns.byNames(*columnNames)
+        return newIndex(name, *indexColumns.toTypedArray(), unique = unique, primary = primary)
+    }
+
+    fun newIndex(name: String?, vararg indexColumns: Column, unique: Boolean = false, primary: Boolean = false): Index {
+        if (primary) assert(primaryKey == null) { "The primary key already exists in this table" }
         val indexName =
             when {
                 name != null -> name
@@ -186,17 +192,39 @@ class Table : MajorObject {
                 unique -> this.name + "_ux_" + (++indexCounter)
                 else -> this.name + "_ie_" + (++indexCounter)
             }
-        val index = Index(this, indexName, *columnNames, unique = unique, primary = primary)
+        val index = Index(this, indexName, indexColumns.asList(), unique = unique, primary = primary)
         registerInnerElement(index)
         indices += index
+        if (primary) primaryKey = index
         return index
     }
 
-    val primaryColumns: List<Column>
-        get() {
-            val pk = indices.find { it.primary } ?: return emptyList()
-            return pk.columnNames.map { columnName -> columns.find { it.name == columnName }!! }
+    fun newForeignKeyAndColumns(refKey: Index, columnPrefix: String?, mandatory: Boolean = false, cascadeDelete: Boolean = false): ForeignKey {
+        val domColumns = ArrayList<Column>(refKey.columns.size)
+        for (refColumn in refKey.columns) {
+            val domColumn = newColumn(refKey.major.wordRoot, refColumn, mandatory)
+            domColumns += domColumn
         }
+        return newForeignKey(refKey, domColumns, cascadeDelete)
+    }
+
+    fun newForeignKey(refKey: Index, domColumns: List<Column>, cascadeDelete: Boolean = false): ForeignKey {
+        val refTable = refKey.major as Table
+        val wr = "${this.wordRoot}_${refTable.wordRoot}_fk"
+        val name = if (area?.prefix != null) area.prefix + '_' + wr else wr
+        return newForeignKey(name, refKey, domColumns, cascadeDelete)
+    }
+
+    fun newForeignKey(name: String, refKey: Index, domColumns: List<Column>, cascadeDelete: Boolean = false): ForeignKey {
+        val fk = ForeignKey(this, name, refKey, domColumns, cascadeDelete)
+        registerInnerElement(fk)
+        foreignKeys += fk
+        return fk
+    }
+
+
+    val primaryColumns: List<Column> =
+        primaryKey?.columns ?: emptyList()
 
     override fun toString(): String = "$name: $role (${columns.joinToString { it.name!! }})"
 }
@@ -219,7 +247,8 @@ class Column : MinorElement {
     }
 
 
-    val type: Type = primaRef?.type ?: ownType ?: BoolType
+    val type: Type
+        get() = ownType ?: primaRef?.type ?: BoolType
 
     override fun toString(): String = "$name: $type"
 }
@@ -227,22 +256,37 @@ class Column : MinorElement {
 
 class Index : MinorElement {
 
-    val columnNames: List<String>
+    val columns: List<Column>
 
     val unique: Boolean
     val primary: Boolean
 
-    constructor(table: Table, name: String?, vararg columnNames: String, unique: Boolean = false, primary: Boolean = false) : super(table, name) {
-        this.columnNames =
-            when (columnNames.size) {
+    constructor(table: Table, name: String?, columns: List<Column>, unique: Boolean = false, primary: Boolean = false) : super(table, name) {
+        this.columns =
+            when (columns.size) {
                 0    -> throw IllegalArgumentException("Columns are missing in the index $name")
-                1    -> Collections.singletonList<String>(columnNames[0])
-                else -> columnNames.asList()
+                1    -> Collections.singletonList(columns[0])
+                else -> ArrayList(columns)
             }
         this.unique = unique || primary
         this.primary = primary
     }
 
-    override fun toString(): String = "$name (${columnNames.joinToString()})"
+    override fun toString(): String = "$name (${columns.joinToString {it.name ?: "<unnamed>"}})"
+}
+
+
+class ForeignKey : MinorElement {
+
+    val refKey: Index
+    val domColumns: List<Column>
+    val cascadeDelete: Boolean
+
+    constructor(table: Table, name: String, refKey: Index, domColumns: List<Column>, cascadeDelete: Boolean = false) : super(table, name) {
+        assert(refKey.columns.size == domColumns.size) { "Cannot create a foreign key: column numbers don't match" }
+        this.refKey = refKey
+        this.domColumns = domColumns
+        this.cascadeDelete = cascadeDelete
+    }
 }
 
