@@ -50,7 +50,14 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
         }
 
         private fun makeIdColumn(table: Table): Column {
-            val type = NumType((rnd.nextBoolean() && rnd.nextBoolean()).choose(sizeLong, sizeNorm), true)
+            val type: Type =
+                when (rnd.nextInt(5)) {
+                    1 -> IntType.int1
+                    2 -> IntType.int2
+                    3 -> IntType.int4
+                    4 -> IntType.int8
+                    else -> DecimalIntType(4 + rnd.nextInt(15))
+                }
             val column = table.newColumn("Id", type, mandatory = true)
             table.newIndex(null, "Id", primary = true)
             return column
@@ -82,7 +89,15 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
             val noun = book.nouns.guessWord(5, table.innerNames)
             val adjective = book.adjectives.guessWord(2)
             val name = adjective + '_' + noun
-            val type = NumType(rnd.nextInt(1, 18))
+            val type =
+                when (rnd.nextInt(6)) {
+                    0 -> BoolType
+                    1 -> IntType.int2
+                    2 -> IntType.int4
+                    3 -> IntType.int8
+                    4 -> DecimalIntType(rnd.nextInt(1, 30))
+                    else -> StrType(rnd.nextInt(8, 40))
+                }
             table.newColumn(name, type)
         }
 

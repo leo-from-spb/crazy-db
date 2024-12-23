@@ -8,9 +8,17 @@ import lb.crazy.model.lastChar
  */
 class CodeFile {
 
+    /// FILE NAME \\\
+
+    val fileName: String
+
+
     /// SETTINGS \\\
 
     var indent: String = "\t"
+
+    var glueToChars: Set<Char> = setOf(' ', '\t', '(')
+    var gluingChars: Set<Char> = setOf(':', ',', ';', ')')
 
 
     /// INTERNAL STATE \\\
@@ -20,7 +28,8 @@ class CodeFile {
 
     /// CONSTRUCTOR \\\
 
-    init {
+    constructor(fileName: String) {
+        this.fileName = fileName
         buff = StringBuilder(256)
     }
 
@@ -67,5 +76,20 @@ class CodeFile {
         while (k > 0 && buff[k-1].isWhitespace()) k--
         if (buff[k-1] == what) buff[k - 1] = with
     }
+
+    val atLineBegin: Boolean
+        get() = buff.isEmpty() || lastChar == '\n'
+
+    val lastChar: Char
+        get() {
+            val n = buff.length
+            return if (n == 0) '\u0000' else buff[n-1]
+        }
+
+
+
+    /// OTHER \\\
+
+    override fun toString() = "CodeFile $fileName (${buff.length} chars)"
 
 }

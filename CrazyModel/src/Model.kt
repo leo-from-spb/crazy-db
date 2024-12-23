@@ -32,12 +32,12 @@ sealed class Entity {
 }
 
 
-sealed class NamedEntity (val name: String?): Entity() {
+sealed class NamedEntity (val name: String): Entity() {
 
     val innerNames = HashSet<String>()
 
     init {
-        assert(name == null || name.isNotEmpty())
+        assert(name.isNotEmpty())
     }
 
     protected open fun registerInnerElement(element: NamedEntity) {
@@ -46,7 +46,6 @@ sealed class NamedEntity (val name: String?): Entity() {
     }
 
     override fun toString() = name ?: "<unnamed>"
-    
 }
 
 
@@ -109,7 +108,7 @@ sealed class MajorObject : NamedEntity {
     override val parent: Entity?
         get() = area
 
-    constructor(area: SubjectArea, wordRoot: String?) : super(nameOf(area, wordRoot)) {
+    constructor(area: SubjectArea, wordRoot: String) : super(nameOf(area, wordRoot)) {
         this.area = area
         this.wordRoot = wordRoot
     }
@@ -123,20 +122,19 @@ sealed class MinorElement : NamedEntity {
     override val parent: Entity?
         get() = major
 
-    constructor(major: MajorObject, name: String?) : super(name) {
+    constructor(major: MajorObject, name: String) : super(name) {
         this.major = major
     }
 
 }
 
 
-private fun nameOf(area: SubjectArea, rootWord: String?): String? =
+private fun nameOf(area: SubjectArea, rootWord: String): String =
     when {
-        rootWord == null -> null
         area.prefix == null -> rootWord
         else -> area.prefix + '_' + rootWord
     }
-
+                                                                          
 
 class Table : MajorObject {
 
@@ -232,20 +230,30 @@ class Table : MajorObject {
 
 class Column : MinorElement {
 
+    companion object {
+        private fun computeColumnNumber(table: Table): Int = table.columns.size + 1
+    }
+
+    val table: Table
+    val nr: Int
+
     var primaRef: Column? = null
     var ownType: Type? = null
     var mandatory: Boolean = false
 
-    constructor(major: MajorObject, name: String, primaRef: Column, mandatory: Boolean = false) : super(major, name) {
+    constructor(table: Table, name: String, primaRef: Column, mandatory: Boolean = false) : super(table, name) {
+        this.table = table
+        this.nr = computeColumnNumber(table)
         this.primaRef = primaRef
         this.mandatory = mandatory
     }
 
-    constructor(major: MajorObject, name: String, type: Type, mandatory: Boolean = false) : super(major, name) {
+    constructor(table: Table, name: String, type: Type, mandatory: Boolean = false) : super(table, name) {
+        this.table = table
+        this.nr = computeColumnNumber(table)
         this.ownType = type
         this.mandatory = mandatory
     }
-
 
     val type: Type
         get() = ownType ?: primaRef?.type ?: BoolType
@@ -261,7 +269,7 @@ class Index : MinorElement {
     val unique: Boolean
     val primary: Boolean
 
-    constructor(table: Table, name: String?, columns: List<Column>, unique: Boolean = false, primary: Boolean = false) : super(table, name) {
+    constructor(table: Table, name: String, columns: List<Column>, unique: Boolean = false, primary: Boolean = false) : super(table, name) {
         this.columns =
             when (columns.size) {
                 0    -> throw IllegalArgumentException("Columns are missing in the index $name")
@@ -271,6 +279,11 @@ class Index : MinorElement {
         this.unique = unique || primary
         this.primary = primary
     }
+
+    val columnNames: String
+        get() =
+            if (columns.size == 1) columns[0].name!!
+            else columns.joinToString { it.name!! }
 
     override fun toString(): String = "$name (${columns.joinToString {it.name ?: "<unnamed>"}})"
 }
@@ -282,11 +295,32 @@ class ForeignKey : MinorElement {
     val domColumns: List<Column>
     val cascadeDelete: Boolean
 
+    val domColumnNames: String
+
     constructor(table: Table, name: String, refKey: Index, domColumns: List<Column>, cascadeDelete: Boolean = false) : super(table, name) {
         assert(refKey.columns.size == domColumns.size) { "Cannot create a foreign key: column numbers don't match" }
         this.refKey = refKey
         this.domColumns = domColumns
+        this.domColumnNames = domColumns.nameStr()
         this.cascadeDelete = cascadeDelete
     }
+
 }
 
+
+////// UTILITY FUNCTIONS \\\\\\
+
+
+fun <E: NamedEntity> List<E>.byNames(vararg names: String): List<E> =
+    names.mapNotNull { this.find { e -> e.name == it } }
+
+
+fun <E: NamedEntity> List<E>.names(): Array<String> =
+    this.map { it.name }.toTypedArray()
+
+fun <E: NamedEntity> List<E>.nameStr(): String =
+    when (this.size) {
+        0 -> ""
+        1 -> this[0].name
+        else -> this.joinToString { it.name }
+    }

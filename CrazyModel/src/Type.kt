@@ -7,82 +7,43 @@ sealed class Type
 
 
 object BoolType : Type() {
-
     override fun toString() = "Bool"
-
 }
 
 
-class NumType : Type {
-
-    val digits: Int
-    val sizeModifier: Byte
-    val range: IntRange?
-    val positiveOnly: Boolean
+sealed class NumericType : Type()
 
 
-    constructor(digits: Int, positiveOnly: Boolean = false) : super() {
-        this.digits = digits
-        this.sizeModifier =
-            when {
-                digits <= 3 -> sizeShort
-                digits <= 9 -> sizeNorm
-                else -> sizeLong
-            }
-        this.range = null
-        this.positiveOnly = positiveOnly
+class IntType private constructor (val bytes: Byte) : NumericType() {
+
+    companion object {
+        val int1 = IntType(1)
+        val int2 = IntType(2)
+        val int4 = IntType(4)
+        val int8 = IntType(8)
+        val tiny  = int1
+        val short = int2
+        val norm  = int4
+        val long  = int8
     }
 
-    constructor(sizeModifier: Byte = sizeNorm, positiveOnly: Boolean = false) : super() {
-        this.sizeModifier = sizeModifier
-        this.digits =
-            when (sizeModifier) {
-                sizeShort -> 5
-                sizeNorm  -> 10
-                sizeLong  -> 19
-                else -> 19
-            }
-        this.range = null
-        this.positiveOnly = positiveOnly
-    }
-
-    constructor(range: IntRange) : super() {
-        val wing = range.maxWing
-        this.range = range
-        this.digits = wing.numberOfDigits
-        this.sizeModifier =
-            when {
-                wing <= 255 -> sizeShort
-                wing <= 65535 -> sizeNorm
-                else -> sizeLong
-            }
-        this.positiveOnly = range.first > 0
-    }
-
-    override fun toString() =
-        buildString {
-            append("Num")
-            when {
-               digits != 0 -> append('(').append(digits).append(')')
-               sizeModifier == sizeShort -> append("(short)")
-               sizeModifier == sizeNorm -> append("(norm)")
-               sizeModifier == sizeLong -> append("(long)")
-            }
-            if (range != null) append('[').append(range).append(']')
-        }
-
+    override fun toString() = "int$bytes"
 }
 
-const val sizeShort: Byte = -1
-const val sizeNorm: Byte = 0
-const val sizeLong: Byte = +1
+
+class DecimalIntType (val digits: Int) : NumericType() {
+    override fun toString() = "decimal(digits)"
+}
+
+
+class RangeIntType (val min: Int, val max: Int) : NumericType() {
+    override fun toString() = "min..max"
+}
 
 
 
 class StrType (val size: Int) : Type() {
-
     override fun toString() = "Str($size)"
-
 }
 
 

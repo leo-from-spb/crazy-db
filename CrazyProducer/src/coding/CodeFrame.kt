@@ -31,23 +31,35 @@ class CodeFrame internal constructor (
     }
 
 
-    fun phrase(vararg words: CharSequence?) {
+    fun phrase(vararg words: CharSequence?, eoln: Boolean = true) {
         val n = words.size
         if (n == 0) return
-        var k = 0
-        var word = words[0]
-        while (k < n && word.isNullOrBlank()) word = words[k++]
-        if (k == n) return
-        file.append(absoluteIndent)
-        file.append(word!!.trim())
-        k++
-        while (k < n) {
-            val word = words[k++]
-            if (word.isNullOrBlank()) continue
-            file.append(' ')
-            appendString(word.trim())
+
+        var was = false
+        var atBegin = file.atLineBegin
+
+        for (word in words) {
+            word ?: continue
+            var w = word.trim()
+            if (w.isEmpty()) continue
+
+            if (atBegin) {
+                file.append(absoluteIndent)
+                atBegin = false
+            }
+            else {
+                val glue = word[0] in file.gluingChars ||
+                           file.lastChar in file.glueToChars
+                if (!glue) file.append(' ')
+            }
+
+            appendString(w)
+            was = true
         }
-        file.appendEoln()
+
+        if (eoln && was) {
+            file.appendEoln()
+        }
     }
 
     fun line(string: CharSequence?) {

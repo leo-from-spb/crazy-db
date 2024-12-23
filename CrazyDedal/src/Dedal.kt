@@ -3,7 +3,11 @@ package lb.crazy.dedal
 import lb.crazy.dedal.dict.WordLoader
 import lb.crazy.dedal.generator.BasicSchemaGenerator
 import lb.crazy.model.Model
+import lb.crazy.producer.dialects.OracleDialect
+import lb.crazy.producer.scripting.SqlProducer
+import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.StandardOpenOption
 import kotlin.system.exitProcess
 
 /**
@@ -32,6 +36,21 @@ class Dedal {
         generator.generate()
 
         collectAndPrintModelStatistics(model)
+
+        val producer = SqlProducer(OracleDialect())
+        producer.produceCreateScriptForModel(model)
+        val codeFiles = producer.codeFiles
+        say("Produced ${codeFiles.size} SQL script files.")
+
+        val scriptsPath = Path.of("scripts")
+        Files.createDirectories(scriptsPath)
+        for (cf in codeFiles) {
+            val fileName = scriptsPath.resolve(cf.fileName)
+            val text: CharSequence = cf.getText()
+            Files.writeString(fileName, text, Charsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
+        }
+
+        say("Done.")
     }
 
 

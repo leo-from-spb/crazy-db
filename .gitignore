@@ -7,6 +7,7 @@
 .idea/dataSources.local.xml
 .idea/$*
 out
+scripts
 
 # Compiled class file
 *.class
