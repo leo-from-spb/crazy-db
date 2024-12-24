@@ -56,6 +56,7 @@ class Schema : NamedEntity {
 
     val areas: ArrayList<SubjectArea> = ArrayList()
     val tables = ArrayList<Table>()
+    val views = ArrayList<View>()
 
     val areasByName: MutableMap<String, SubjectArea> = LinkedHashMap()
 
@@ -86,6 +87,7 @@ class SubjectArea (val schema: Schema, val prefix: String?): Entity() {
     val rootWords: MutableMap<String, MajorObject> = HashMap()
 
     val tables = ArrayList<Table>()
+    val views = ArrayList<View>()
 
     fun newTable(rootWord: String, role: TableRole): Table {
         assert (rootWord !in rootWords.keys)
@@ -93,6 +95,14 @@ class SubjectArea (val schema: Schema, val prefix: String?): Entity() {
         tables += table
         schema.tables += table
         return table
+    }
+
+    fun newView(rootWord: String): View {
+        assert (rootWord !in rootWords.keys)
+        val view = View(this, rootWord)
+        views += view
+        schema.views += view
+        return view
     }
 
     override fun toString(): String = "$prefix (${tables.size} tables)"
@@ -134,46 +144,55 @@ private fun nameOf(area: SubjectArea, rootWord: String): String =
         area.prefix == null -> rootWord
         else -> area.prefix + '_' + rootWord
     }
-                                                                          
 
-class Table : MajorObject {
+
+
+sealed class LikeTable<C: Column> : MajorObject {
+
+    val columns = ArrayList<C>()
+    val columnsByName = HashMap<String, C>()
+
+    protected var indexCounter = 0
+
+    constructor(area: SubjectArea, wordRoot: String) : super(area, wordRoot)
+
+    protected fun registerColumn(column: C) {
+        registerInnerElement(column)
+        columns += column
+        columnsByName[column.name!!] = column
+    }
+
+}
+
+
+
+class Table : LikeTable<TableColumn> {
 
     val role: TableRole
 
-    val columns = ArrayList<Column>()
     val indices = ArrayList<Index>()
     val foreignKeys = ArrayList<ForeignKey>()
 
-    val columnsByName = HashMap<String, Column>()
-
     var primaryKey: Index? = null
         private set
-
-    private var indexCounter = 0
 
     constructor(area: SubjectArea, rootWord: String, role: TableRole) : super(area, rootWord) {
         this.role = role
     }
 
-    fun newColumn(columnPrefix: String?, primaRef: Column, mandatory: Boolean = false): Column {
+    fun newColumn(columnPrefix: String?, primaRef: Column, mandatory: Boolean = false): TableColumn {
         val name = primaRef.name?.withPrefix(columnPrefix, '_') ?: "column_${columns.size + 1}"
         assert (name !in columnsByName.keys)
-        val column = Column(this, name, primaRef, mandatory)
+        val column = TableColumn(this, name, primaRef, mandatory)
         registerColumn(column)
         return column
     }
 
-    fun newColumn(name: String, type: Type, mandatory: Boolean = false): Column {
+    fun newColumn(name: String, type: Type, mandatory: Boolean = false): TableColumn {
         assert (name !in columnsByName.keys)
-        val column = Column(this, name, type, mandatory)
+        val column = TableColumn(this, name, type, mandatory)
         registerColumn(column)
         return column
-    }
-
-    private fun registerColumn(column: Column) {
-        registerInnerElement(column)
-        columns += column
-        columnsByName[column.name!!] = column
     }
 
     fun newIndex(name: String?, vararg columnNames: String, unique: Boolean = false, primary: Boolean = false): Index {
@@ -224,32 +243,63 @@ class Table : MajorObject {
     val primaryColumns: List<Column> =
         primaryKey?.columns ?: emptyList()
 
-    override fun toString(): String = "$name: $role (${columns.joinToString { it.name!! }})"
+    override fun toString(): String = "table $name: $role (${columns.joinToString { it.name!! }})"
 }
 
 
-class Column : MinorElement {
+class View : LikeTable<ViewColumn> {
 
-    companion object {
-        private fun computeColumnNumber(table: Table): Int = table.columns.size + 1
+    val sections = ArrayList<ViewTableSection>()
+
+    constructor(area: SubjectArea, wordRoot: String) : super(area, wordRoot)
+
+    fun addSection(alias: Char?, table: Table, binds: Collection<ForeignKey>?, columns: List<Column>) {
+        if (binds != null)
+            for (bind in binds)
+                assert(sections.any { it.table === bind.refKey.major })
+        val filteredColumns =
+            if (sections.isEmpty()) columns
+            else columns.filter { it.name !in this.columnsByName.keys }
+        val section = ViewTableSection(alias, table, binds ?: emptySet(), filteredColumns)
+        val ownColumns = filteredColumns.map { ViewColumn(this, section, it) }
+        sections += section
+        for (column in ownColumns) registerColumn(column)
     }
 
-    val table: Table
+    override fun toString() = "view $name for tables ${sections.joinToString { it.table.name }}"
+}
+
+
+class ViewTableSection (val alias: Char?, val table: LikeTable<*>, val binds: Collection<ForeignKey>, val columns: List<Column>) {
+
+    val aliasOrName
+        get() = alias?.toString() ?: table.name
+
+}
+
+
+
+sealed class Column : MinorElement {
+
+    companion object {
+        private fun computeColumnNumber(table: LikeTable<*>): Int = table.columns.size + 1
+    }
+
+    val table: LikeTable<*>
     val nr: Int
 
     var primaRef: Column? = null
     var ownType: Type? = null
     var mandatory: Boolean = false
-    var defaultExpression: String? = null
 
-    constructor(table: Table, name: String, primaRef: Column, mandatory: Boolean = false) : super(table, name) {
+    constructor(table: LikeTable<*>, name: String, primaRef: Column, mandatory: Boolean = false) : super(table, name) {
         this.table = table
         this.nr = computeColumnNumber(table)
         this.primaRef = primaRef
         this.mandatory = mandatory
     }
 
-    constructor(table: Table, name: String, type: Type, mandatory: Boolean = false) : super(table, name) {
+    constructor(table: LikeTable<*>, name: String, type: Type, mandatory: Boolean = false) : super(table, name) {
         this.table = table
         this.nr = computeColumnNumber(table)
         this.ownType = type
@@ -261,6 +311,46 @@ class Column : MinorElement {
 
     override fun toString(): String = "$name: $type"
 }
+
+
+class TableColumn : Column {
+
+    var defaultExpression: String? = null
+
+    constructor(table: Table, name: String, primaRef: Column, mandatory: Boolean)
+            : super(table, name, primaRef, mandatory)
+
+    constructor(table: Table, name: String, type: Type, mandatory: Boolean)
+            : super(table, name, type, mandatory)
+
+}
+
+
+class ViewColumn : Column {
+
+    val section: ViewTableSection
+
+    constructor(view: View, section: ViewTableSection, primaRef: Column)
+            : super(view, primaRef.name, primaRef)
+    {
+        this.section = section
+    }
+
+    val nameWithAlias: String
+        get() {
+            val alias = section.alias
+            return if (alias != null) "$alias.$name" else name
+        }
+
+    val nameWithAliasOrTableName: String
+        get() {
+            val alias = section.alias
+            return if (alias != null) "$alias.$name" else "${section.table.name}.$name"
+        }
+
+
+}
+
 
 
 class Index : MinorElement {

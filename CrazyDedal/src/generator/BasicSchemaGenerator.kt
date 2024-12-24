@@ -34,7 +34,7 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
                     makeOnePrimeTable()
                 if (oldTablesN > 0 && rnd.nextInt(4) == 0) {
                     val oldTable = schema.tables[rnd.nextInt(oldTablesN)]
-                    makeManyToManyTable(oldTable, newTable)
+                    makeManyToManyRelationship(oldTable, newTable)
                 }
             }
         }
@@ -64,7 +64,7 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
             return column
         }
 
-        private fun makeManyToManyTable(table1: Table, table2: Table) {
+        private fun makeManyToManyRelationship(table1: Table, table2: Table) {
             assert(table1 !== table2)
             assert(table1.wordRoot !== table2.wordRoot)
             val refKey1 = table1.primaryKey ?: return
@@ -79,14 +79,38 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
             val withExtraColumns = rnd.nextInt(3) == 0
             table.newIndex(null, *pkColumnNames, unique = true, primary = withExtraColumns)
 
+            val extraColumns = ArrayList<Column>(2)
             if (withExtraColumns) {
-                makeSimpleColumn(table)
-                if (rnd.nextBoolean())
-                    makeSimpleColumn(table)
+                val ec1 = makeSimpleColumn(table)
+                extraColumns += ec1
+                if (rnd.nextBoolean()) {
+                    val ec2 = makeSimpleColumn(table)
+                    extraColumns += ec2
+                }
+            }
+
+            var alias1: Char = table1.wordRoot!![0].uppercaseChar()
+            var alias2: Char = table2.wordRoot!![0].uppercaseChar()
+            if (alias1 == alias2) {
+                alias1 = table1.wordRoot!![1].uppercaseChar()
+                alias2 = table2.wordRoot!![1].uppercaseChar()
+            }
+            var alias3: Char = 'X'
+            if (alias1 == alias3 || alias2 == alias3) alias3 = 'Y'
+            if (alias1 != alias2 && alias2 != alias3 && alias1 != alias3) {
+                val viewNameRoot = combinedRoot + "_Wide"
+                val view = area.newView(viewNameRoot)
+                val table1pc = table1.primaryColumns
+                val columns1 = table1.columns.filter { it in table1pc || rnd.nextBoolean() }
+                view.addSection(alias1, table1, null, columns1)
+                val table2pc = table2.primaryColumns
+                val columns2 = table2.columns.filter { it in table2pc || rnd.nextBoolean() }
+                view.addSection(alias2, table2, null, columns2)
+                view.addSection(alias3, table, table.foreignKeys, extraColumns)
             }
         }
 
-        private fun makeSimpleColumn(table: Table) {
+        private fun makeSimpleColumn(table: Table): Column {
             val noun = book.nouns.guessWord(5, table.innerNames)
             val adjective = book.adjectives.guessWord(2)
             val name = adjective + '_' + noun
@@ -106,6 +130,7 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
                 column.defaultExpression = makeNumericDefaultExpression(type)
                 column.mandatory = true
             }
+            return column
         }
 
         private fun makeNumericDefaultExpression(type: NumericType): String? =

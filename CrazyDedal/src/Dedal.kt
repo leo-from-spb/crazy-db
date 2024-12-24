@@ -57,6 +57,7 @@ class Dedal {
     private fun collectAndPrintModelStatistics(model: Model) {
         val nAreas = model.schemas.sumOf { it.areas.size }
         val nTables = model.schemas.sumOf { it.tables.size }
+        val nViews = model.schemas.sumOf { it.views.size }
         val nColumns = model.schemas.sumOf { it.tables.sumOf { it.columns.size } }
         val nIndices = model.schemas.sumOf { it.tables.sumOf { it.indices.size } }
         val nForeignKeys = model.schemas.sumOf { it.tables.sumOf { it.foreignKeys.size } }
@@ -66,6 +67,7 @@ class Dedal {
                          |>schemas      : ${model.schemas.size}
                          |>subject areas: $nAreas
                          |>tables       : $nTables
+                         |>views        : $nViews
                          |>columns      : $nColumns
                          |>indices      : $nIndices
                          |>foreign keys : $nForeignKeys

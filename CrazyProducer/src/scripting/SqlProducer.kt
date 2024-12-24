@@ -46,7 +46,7 @@ open class SqlProducer (val dialect: SqlDialect) {
         val schema: Schema = area.schema
 
         produceCreateTables(file, area)
-
+        produceCreateViews(file, area)
     }
 
     protected fun produceCreateTables(file: CodeFile, area: SubjectArea) {
@@ -94,6 +94,60 @@ open class SqlProducer (val dialect: SqlDialect) {
                 line(dialect.commandDelimiter)
                 emptyLine()
             }
+        }
+    }
+
+
+    fun produceCreateViews(file: CodeFile, area: SubjectArea) {
+        for (view in area.views) {
+            produceCreateView(file, view)
+        }
+    }
+
+    fun produceCreateView(file: CodeFile, view: View) {
+        file.coding {
+            phrase("create view", view.name, "as")
+
+            var b = true
+            var left: String
+            for (column in view.columns) {
+                left = b.choose("select ", "     , ")
+                val item = column.nameWithAlias
+                line(left + item)
+                b = false
+            }
+
+            val conditions = ArrayList<String>()
+            b = true
+            for (section in view.sections) {
+                left = b.choose("from ", "   , ")
+                val domTableName = section.table.name
+                val domTableQ = section.alias?.toString() ?: domTableName
+                val domAlias = section.alias?.toString()
+                val item = domTableName + (if (domAlias != null) " $domAlias" else "")
+                line(left + item)
+                for (bind in section.binds) {
+                    val refSection = view.sections.first { it.table === bind.refKey.major }
+                    val refTableQ = refSection.alias?.toString() ?: bind.refKey.major.name
+                    val n = bind.domColumns.size
+                    for (i in 0 until n) {
+                        val domColumnName = bind.domColumns[i].name
+                        val refColumnName = bind.refKey.columns[i].name
+                        conditions += "$domTableQ.$domColumnName = $refTableQ.$refColumnName"
+                    }
+                }
+                b = false
+            }
+
+            b = true
+            for (condition in conditions) {
+                left = b.choose("where ", "  and ")
+                line(left + condition)
+                b = false
+            }
+
+            line(dialect.commandDelimiter)
+            emptyLine()
         }
     }
 
