@@ -61,18 +61,22 @@ open class SqlProducer (val dialect: SqlDialect) {
             line("(")
             frame {
                 for (column in table.columns) {
+                    val name = column.name
+                    val type = column.type
                     val m = if (column.mandatory) "not null" else null
-                    phrase(column.name, column.type.script(), m, ",")
+                    val defaultExpression = column.defaultExpression?.let { "default ($it)" }
+                    val innerCheck = if (type is RangeIntType) "check ($name between ${type.min} and ${type.max})" else null
+                    phrase(name, type.script(), m, defaultExpression, innerCheck, ",")
                 }
                 for (index in table.indices) {
                     if (index.unique) {
-                        if (index.name != null) phrase("constraint", index.name, eoln = false)
+                        phrase("constraint", index.name, eoln = false)
                         val w = index.primary.choose("primary key", "unique")
                         phrase(w, "(", index.columnNames, "),")
                     }
                 }
                 for (fk in table.foreignKeys) {
-                    if (fk.name != null) phrase("constraint", fk.name, eoln = false)
+                    phrase("constraint", fk.name, eoln = false)
                     val cascade = if (fk.cascadeDelete) "on delete cascade" else null
                     val refKey = fk.refKey
                     val refColumns = if (refKey.primary) null else refKey.columnNames
@@ -83,6 +87,13 @@ open class SqlProducer (val dialect: SqlDialect) {
             line(")")
             line(dialect.commandDelimiter)
             emptyLine()
+
+            for (index in table.indices) {
+                if (index.unique) continue
+                phrase("create index", index.name, "on", table.name, "(", index.columnNames, ")")
+                line(dialect.commandDelimiter)
+                emptyLine()
+            }
         }
     }
 

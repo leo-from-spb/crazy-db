@@ -11,7 +11,10 @@ object BoolType : Type() {
 }
 
 
-sealed class NumericType : Type()
+sealed class NumericType : Type() {
+    open val containsNegatives: Boolean
+        get() = true
+}
 
 
 class IntType private constructor (val bytes: Byte) : NumericType() {
@@ -37,6 +40,11 @@ class DecimalIntType (val digits: Int) : NumericType() {
 
 
 class RangeIntType (val min: Int, val max: Int) : NumericType() {
+    constructor(range: IntRange) : this(range.first, range.last)
+
+    override val containsNegatives: Boolean
+        get() = min < 0
+
     override fun toString() = "min..max"
 }
 

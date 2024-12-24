@@ -2,6 +2,7 @@ package lb.crazy.dedal.generator
 
 import lb.crazy.dedal.dict.WordBook
 import lb.crazy.model.*
+import kotlin.random.Random
 
 /**
  * Generates a simple schema.
@@ -90,16 +91,59 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
             val adjective = book.adjectives.guessWord(2)
             val name = adjective + '_' + noun
             val type =
-                when (rnd.nextInt(6)) {
+                when (rnd.nextInt(8)) {
                     0 -> BoolType
                     1 -> IntType.int2
                     2 -> IntType.int4
                     3 -> IntType.int8
                     4 -> DecimalIntType(rnd.nextInt(1, 30))
+                    5 -> RangeIntType(rnd.nextRangeSymmetric())
+                    6 -> RangeIntType(0, rnd.nextRoundInt())
                     else -> StrType(rnd.nextInt(8, 40))
                 }
-            table.newColumn(name, type)
+            val column = table.newColumn(name, type)
+            if (type is NumericType && rnd.nextInt(3) == 0) {
+                column.defaultExpression = makeNumericDefaultExpression(type)
+                column.mandatory = true
+            }
         }
+
+        private fun makeNumericDefaultExpression(type: NumericType): String? =
+            when (rnd.nextInt(3)) {
+                1 -> "1"
+                2 -> if (type.containsNegatives) "-1" else null
+                else -> "0"
+            }
+
+    }
+
+
+    private companion object {
+
+        fun Random.nextRangeSymmetric(): IntRange {
+            val wing = nextRoundInt()
+            return -wing..wing
+        }
+
+        fun Random.nextRoundInt() =
+            when (nextInt(17)) {
+                1 -> 10
+                2 -> 20
+                3 -> 50
+                4 -> 100
+                5 -> 200
+                6 -> 500
+                7 -> 1000
+                8 -> 2000
+                9 -> 5000
+                10 -> 10000
+                11 -> 20000
+                12 -> 50000
+                13 -> 100000
+                14 -> 200000
+                15 -> 500000
+                else -> 1000000
+            }
 
     }
 

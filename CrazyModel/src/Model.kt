@@ -240,6 +240,7 @@ class Column : MinorElement {
     var primaRef: Column? = null
     var ownType: Type? = null
     var mandatory: Boolean = false
+    var defaultExpression: String? = null
 
     constructor(table: Table, name: String, primaRef: Column, mandatory: Boolean = false) : super(table, name) {
         this.table = table
