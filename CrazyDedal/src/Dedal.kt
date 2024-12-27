@@ -7,6 +7,7 @@ import lb.crazy.model.ModelSettings
 import lb.crazy.producer.coding.CodeFile
 import lb.crazy.producer.dialects.MysqlDialect
 import lb.crazy.producer.dialects.SqlDialect
+import lb.crazy.producer.scripting.SqlGeneratingSettings
 import lb.crazy.producer.scripting.SqlProducer
 import java.nio.file.Files
 import java.nio.file.Path
@@ -36,13 +37,14 @@ class Dedal {
         val modelSettings = ModelSettings()
         val model = Model(modelSettings)
 
-        val generator = BasicSchemaGenerator(model, "Crazy_B", book)
+        val generator = BasicSchemaGenerator(model, "Crazy_C", book)
         generator.generate()
 
         collectAndPrintModelStatistics(model)
 
         val dialect = MysqlDialect()
-        val producer = SqlProducer(dialect)
+        val generatingSettings = SqlGeneratingSettings()
+        val producer = SqlProducer(dialect, generatingSettings)
         producer.produceCreateScriptForModel(model)
         val codeFiles = producer.codeFiles
         say("Produced ${codeFiles.size} SQL script files.")

@@ -12,6 +12,11 @@ sealed class SqlDialect {
 
     open val commandDelimiter: String = ";"
 
+    open val commandIncludeFile: String? = null
+    open val commandCreateSchema: String? = null
+    open val commandSetCurrentSchema: String? = null
+
+    open val constraintNameIsGlobal: Boolean = false
     open val foreignKeyAlwaysRequiresColumnList: Boolean = false
 
     open val nativeNumericIsDecimal: Boolean = false
@@ -68,6 +73,10 @@ class OracleDialect : SqlDialect() {
 
     override val name = "Oracle"
     override val commandDelimiter: String = "/"
+    override val commandIncludeFile: String = "@@FILEPATH"
+    override val commandCreateSchema: String = "create user SCHEMA identified by PASSWORD"
+    override val commandSetCurrentSchema: String = "alter session set current_schema = SCHEMA"
+    override val constraintNameIsGlobal = true
     override val nativeNumericIsDecimal = true
 
 }
@@ -88,6 +97,9 @@ class MysqlDialect : SqlDialect() {
 
     override val name = "Mysql"
     override val identifierLengthLimit = 64
+    override val commandIncludeFile: String = "source FILEPATH"
+    override val commandCreateSchema: String = "create schema if not exists SCHEMA"
+    override val commandSetCurrentSchema: String = "use SCHEMA"
     override val foreignKeyAlwaysRequiresColumnList = true
     
 }

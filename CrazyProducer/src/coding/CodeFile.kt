@@ -17,8 +17,8 @@ class CodeFile {
 
     var indent: String = "\t"
 
-    var glueToChars: Set<Char> = setOf(' ', '\t', '(')
-    var gluingChars: Set<Char> = setOf(':', ',', ';', ')')
+    var glueToChars: Set<Char> = setOf(' ', '\t', '(', '.')
+    var gluingChars: Set<Char> = setOf(':', ',', ';', '.', ')')
 
 
     /// INTERNAL STATE \\\

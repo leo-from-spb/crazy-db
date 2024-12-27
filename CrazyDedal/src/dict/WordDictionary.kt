@@ -25,13 +25,13 @@ class WordDictionary {
     }
 
 
-    fun guessWord(min: Int, vararg except: Set<String>, capitalized: Boolean = false): String {
-        var word = selectWord(min, *except)
+    fun guessWord(wordLength: IntRange, vararg except: Set<String>, capitalized: Boolean = false): String {
+        var word = selectWord(wordLength, *except)
         if (capitalized) word = word.replaceFirstChar(Char::uppercaseChar)
         return word
     }
 
-    private fun selectWord(min: Int, vararg except: Set<String>): String {
+    private fun selectWord(wordLength: IntRange, vararg except: Set<String>): String {
         val n = size
         assert(n >= 3)
 
@@ -39,12 +39,12 @@ class WordDictionary {
         for (attempt in 1 .. 100) {
             val x = rnd.nextInt(n)
             val word = words[x]
-            if (word.length >= min && word.isNotIn(*except)) return word
+            if (word.length in wordLength && word.isNotIn(*except)) return word
         }
 
         // attempt 2 - scan
         for (word in words) {
-            if (word.length >= min && word.isNotIn(*except)) return word
+            if (word.length in wordLength && word.isNotIn(*except)) return word
         }
 
         // no more words

@@ -67,6 +67,8 @@ class Schema : NamedEntity {
         boringArea = SubjectArea(this, null)
     }
 
+    val fileLemma: String = name.replace('_', '-')
+
     fun newArea(prefix: String): SubjectArea {
         assert(prefix !in areasByName.keys)
         val area = SubjectArea(this, prefix)

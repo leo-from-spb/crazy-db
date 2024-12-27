@@ -69,6 +69,10 @@ class CodeFrame internal constructor (
         }
     }
 
+    fun lines(vararg strings: CharSequence?) {
+        for (string in strings) line(string)
+    }
+
     fun lines(strings: Iterable<CharSequence?>) {
         for (string in strings) line(string)
     }
