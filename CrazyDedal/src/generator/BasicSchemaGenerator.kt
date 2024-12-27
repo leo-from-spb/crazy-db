@@ -28,7 +28,7 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
     private inner class SubjectAreaGenerator (val area: SubjectArea) {
 
         fun makePrimeTables() {
-            for (i in 1..20) {
+            for (i in 1..100) {
                 val oldTablesN = schema.tables.size
                 val newTable =
                     makeOnePrimeTable()
@@ -41,7 +41,7 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
 
 
         private fun makeOnePrimeTable(): Table {
-            val rootWord = book.nouns.guessWord(5, schema.innerNames)
+            val rootWord = book.nouns.guessWord(5, schema.innerNames, capitalized = true)
             val table = area.newTable(rootWord, TableRole.Master)
 
             makeIdColumn(table)
@@ -111,8 +111,8 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
         }
 
         private fun makeSimpleColumn(table: Table): Column {
-            val noun = book.nouns.guessWord(5, table.innerNames)
-            val adjective = book.adjectives.guessWord(2)
+            val noun = book.nouns.guessWord(5, table.innerNames, capitalized = true)
+            val adjective = book.adjectives.guessWord(2, capitalized = true)
             val name = adjective + '_' + noun
             val type =
                 when (rnd.nextInt(8)) {
@@ -169,6 +169,7 @@ class BasicSchemaGenerator : AbstractSchemaGenerator {
                 15 -> 500000
                 else -> 1000000
             }
+
 
     }
 

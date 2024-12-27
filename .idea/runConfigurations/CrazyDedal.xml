@@ -3,6 +3,7 @@
     <option name="MAIN_CLASS_NAME" value="lb.crazy.dedal.Dedal" />
     <module name="CrazyDedal" />
     <shortenClasspath name="NONE" />
+    <option name="VM_PARAMETERS" value="-ea" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

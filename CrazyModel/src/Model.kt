@@ -3,7 +3,7 @@ package lb.crazy.model
 import java.util.*
 
 
-class Model {
+class Model (val settings: ModelSettings) {
 
     val schemas = ArrayList<Schema>()
 
@@ -11,7 +11,7 @@ class Model {
 
     fun newSchema(name: String): Schema {
         assert(name !in schemasByName.keys)
-        val schema = Schema(name)
+        val schema = Schema(this, name)
         schemas += schema
         schemasByName[name] = schema
         return schema
@@ -25,19 +25,20 @@ class Model {
 }
 
 
-sealed class Entity {
+sealed class Entity (val model: Model) {
 
     abstract val parent: Entity?
 
 }
 
 
-sealed class NamedEntity (val name: String): Entity() {
+sealed class NamedEntity (model: Model, val name: String): Entity(model) {
 
     val innerNames = HashSet<String>()
 
     init {
-        assert(name.isNotEmpty())
+        assert(name.isNotEmpty()) { "The name is empty" }
+        assert(name.length <= model.settings.nameLengthLimit) { "The name \"$name\" is too long (the limit is ${model.settings.nameLengthLimit} characters)" }
     }
 
     protected open fun registerInnerElement(element: NamedEntity) {
@@ -62,7 +63,7 @@ class Schema : NamedEntity {
 
     val boringArea: SubjectArea
 
-    constructor(name: String) : super(name) {
+    constructor(model: Model, name: String) : super(model, name) {
         boringArea = SubjectArea(this, null)
     }
 
@@ -79,7 +80,7 @@ class Schema : NamedEntity {
 }
 
 
-class SubjectArea (val schema: Schema, val prefix: String?): Entity() {
+class SubjectArea (val schema: Schema, val prefix: String?): Entity(schema.model) {
 
     override val parent: Entity
         get() = schema
@@ -118,7 +119,7 @@ sealed class MajorObject : NamedEntity {
     override val parent: Entity?
         get() = area
 
-    constructor(area: SubjectArea, wordRoot: String) : super(nameOf(area, wordRoot)) {
+    constructor(area: SubjectArea, wordRoot: String) : super(area.model, nameOf(area, wordRoot)) {
         this.area = area
         this.wordRoot = wordRoot
     }
@@ -132,7 +133,7 @@ sealed class MinorElement : NamedEntity {
     override val parent: Entity?
         get() = major
 
-    constructor(major: MajorObject, name: String) : super(name) {
+    constructor(major: MajorObject, name: String) : super(major.model, name) {
         this.major = major
     }
 
@@ -181,8 +182,8 @@ class Table : LikeTable<TableColumn> {
     }
 
     fun newColumn(columnPrefix: String?, primaRef: Column, mandatory: Boolean = false): TableColumn {
-        val name = primaRef.name?.withPrefix(columnPrefix, '_') ?: "column_${columns.size + 1}"
-        assert (name !in columnsByName.keys)
+        val name = adjustIdentifierBySize(primaRef.name?.withPrefix(columnPrefix, '_'), limit = model.settings.nameLengthLimit) ?: "column_${columns.size + 1}"
+        assert (name !in columnsByName.keys) { "The name $name is already used by another column" }
         val column = TableColumn(this, name, primaRef, mandatory)
         registerColumn(column)
         return column
@@ -219,16 +220,17 @@ class Table : LikeTable<TableColumn> {
     fun newForeignKeyAndColumns(refKey: Index, columnPrefix: String?, mandatory: Boolean = false, cascadeDelete: Boolean = false): ForeignKey {
         val domColumns = ArrayList<Column>(refKey.columns.size)
         for (refColumn in refKey.columns) {
-            val domColumn = newColumn(refKey.major.wordRoot, refColumn, mandatory)
+            val domColumn = newColumn(refKey.table.wordRoot, refColumn, mandatory)
             domColumns += domColumn
         }
         return newForeignKey(refKey, domColumns, cascadeDelete)
     }
 
     fun newForeignKey(refKey: Index, domColumns: List<Column>, cascadeDelete: Boolean = false): ForeignKey {
-        val refTable = refKey.major as Table
+        val refTable = refKey.table
         val wr = "${this.wordRoot}_${refTable.wordRoot}_fk"
-        val name = if (area?.prefix != null) area.prefix + '_' + wr else wr
+        var name = if (area?.prefix != null) area.prefix + '_' + wr else wr
+        name = adjustIdentifierBySize(name, limit = model.settings.nameLengthLimit) 
         return newForeignKey(name, refKey, domColumns, cascadeDelete)
     }
 
@@ -256,7 +258,7 @@ class View : LikeTable<ViewColumn> {
     fun addSection(alias: Char?, table: Table, binds: Collection<ForeignKey>?, columns: List<Column>) {
         if (binds != null)
             for (bind in binds)
-                assert(sections.any { it.table === bind.refKey.major })
+                assert(sections.any { it.table === bind.refKey.table })
         val filteredColumns =
             if (sections.isEmpty()) columns
             else columns.filter { it.name !in this.columnsByName.keys }
@@ -355,12 +357,14 @@ class ViewColumn : Column {
 
 class Index : MinorElement {
 
+    val table: Table
     val columns: List<Column>
 
     val unique: Boolean
     val primary: Boolean
 
     constructor(table: Table, name: String, columns: List<Column>, unique: Boolean = false, primary: Boolean = false) : super(table, name) {
+        this.table = table
         this.columns =
             when (columns.size) {
                 0    -> throw IllegalArgumentException("Columns are missing in the index $name")

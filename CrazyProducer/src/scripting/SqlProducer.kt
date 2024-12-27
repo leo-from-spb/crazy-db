@@ -79,8 +79,8 @@ open class SqlProducer (val dialect: SqlDialect) {
                     phrase("constraint", fk.name, eoln = false)
                     val cascade = if (fk.cascadeDelete) "on delete cascade" else null
                     val refKey = fk.refKey
-                    val refColumns = if (refKey.primary) null else refKey.columnNames
-                    phrase("foreign key (", fk.domColumnNames, ") references", refKey.name, refColumns, cascade, ",")
+                    val refColumns = if (!refKey.primary || dialect.foreignKeyAlwaysRequiresColumnList) refKey.columnNames.inParens else null
+                    phrase("foreign key", fk.domColumnNames.inParens, "references", refKey.table.name, refColumns, cascade, ",")
                 }
                 removeLastChar(',')
             }
@@ -90,7 +90,7 @@ open class SqlProducer (val dialect: SqlDialect) {
 
             for (index in table.indices) {
                 if (index.unique) continue
-                phrase("create index", index.name, "on", table.name, "(", index.columnNames, ")")
+                phrase("create index", index.name, "on", table.name, index.columnNames.inParens)
                 line(dialect.commandDelimiter)
                 emptyLine()
             }
@@ -127,8 +127,9 @@ open class SqlProducer (val dialect: SqlDialect) {
                 val item = domTableName + (if (domAlias != null) " $domAlias" else "")
                 line(left + item)
                 for (bind in section.binds) {
-                    val refSection = view.sections.first { it.table === bind.refKey.major }
-                    val refTableQ = refSection.alias?.toString() ?: bind.refKey.major.name
+                    val refTable = bind.refKey.table
+                    val refSection = view.sections.first { it.table === refTable }
+                    val refTableQ = refSection.alias?.toString() ?: refTable.name
                     val n = bind.domColumns.size
                     for (i in 0 until n) {
                         val domColumnName = bind.domColumns[i].name

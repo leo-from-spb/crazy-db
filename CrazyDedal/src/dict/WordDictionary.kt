@@ -25,7 +25,13 @@ class WordDictionary {
     }
 
 
-    fun guessWord(min: Int, vararg except: Set<String>): String {
+    fun guessWord(min: Int, vararg except: Set<String>, capitalized: Boolean = false): String {
+        var word = selectWord(min, *except)
+        if (capitalized) word = word.replaceFirstChar(Char::uppercaseChar)
+        return word
+    }
+
+    private fun selectWord(min: Int, vararg except: Set<String>): String {
         val n = size
         assert(n >= 3)
 

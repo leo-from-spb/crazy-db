@@ -6,8 +6,13 @@ import kotlin.math.truncate
 
 sealed class SqlDialect {
 
+    abstract val name : String
+
+    open val identifierLengthLimit: Int = 60
+
     open val commandDelimiter: String = ";"
 
+    open val foreignKeyAlwaysRequiresColumnList: Boolean = false
 
     open val nativeNumericIsDecimal: Boolean = false
 
@@ -52,6 +57,7 @@ sealed class SqlDialect {
 
 class GenericDialect : SqlDialect() {
 
+    override val name = "Generic"
     override val nativeNumericIsDecimal = true
 
 }
@@ -60,8 +66,8 @@ class GenericDialect : SqlDialect() {
 
 class OracleDialect : SqlDialect() {
 
+    override val name = "Oracle"
     override val commandDelimiter: String = "/"
-
     override val nativeNumericIsDecimal = true
 
 }
@@ -69,6 +75,8 @@ class OracleDialect : SqlDialect() {
 
 
 class MsDialect : SqlDialect() {
+
+    override val name = "Mssql"
 
     override val commandDelimiter: String = "go"
 
@@ -78,5 +86,8 @@ class MsDialect : SqlDialect() {
 
 class MysqlDialect : SqlDialect() {
 
-
+    override val name = "Mysql"
+    override val identifierLengthLimit = 64
+    override val foreignKeyAlwaysRequiresColumnList = true
+    
 }

@@ -3,7 +3,10 @@ package lb.crazy.dedal
 import lb.crazy.dedal.dict.WordLoader
 import lb.crazy.dedal.generator.BasicSchemaGenerator
 import lb.crazy.model.Model
-import lb.crazy.producer.dialects.OracleDialect
+import lb.crazy.model.ModelSettings
+import lb.crazy.producer.coding.CodeFile
+import lb.crazy.producer.dialects.MysqlDialect
+import lb.crazy.producer.dialects.SqlDialect
 import lb.crazy.producer.scripting.SqlProducer
 import java.nio.file.Files
 import java.nio.file.Path
@@ -30,25 +33,21 @@ class Dedal {
         val book = loader.loadBook()
         say("Loaded the dictionary book: ${book.nouns.size} nouns, ${book.verbs.size} verbs, ${book.adjectives.size} adjectives.")
 
-        val model = Model()
+        val modelSettings = ModelSettings()
+        val model = Model(modelSettings)
 
         val generator = BasicSchemaGenerator(model, "Crazy_B", book)
         generator.generate()
 
         collectAndPrintModelStatistics(model)
 
-        val producer = SqlProducer(OracleDialect())
+        val dialect = MysqlDialect()
+        val producer = SqlProducer(dialect)
         producer.produceCreateScriptForModel(model)
         val codeFiles = producer.codeFiles
         say("Produced ${codeFiles.size} SQL script files.")
 
-        val scriptsPath = Path.of("scripts")
-        Files.createDirectories(scriptsPath)
-        for (cf in codeFiles) {
-            val fileName = scriptsPath.resolve(cf.fileName)
-            val text: CharSequence = cf.getText()
-            Files.writeString(fileName, text, Charsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)
-        }
+        writeProducedFiles(dialect, codeFiles)
 
         say("Done.")
     }
@@ -73,6 +72,23 @@ class Dedal {
                          |>foreign keys : $nForeignKeys
                       """.trimMargin().replace('>','\t')
         say(message)
+    }
+
+    
+    private fun writeProducedFiles(dialect: SqlDialect, codeFiles: ArrayList<CodeFile>) {
+        val allScriptsPath = Path.of(DedalDefaults.GeneratedScriptDirectory)
+        val dialectScriptPath = allScriptsPath.resolve(dialect.name)
+
+        Files.createDirectories(dialectScriptPath)
+        for (cf in codeFiles) {
+            val fileName = dialectScriptPath.resolve(cf.fileName)
+            val text: CharSequence = cf.getText()
+            Files.writeString(fileName,
+                              text,
+                              Charsets.UTF_8,
+                              StandardOpenOption.CREATE,
+                              StandardOpenOption.TRUNCATE_EXISTING)
+        }
     }
 
 
